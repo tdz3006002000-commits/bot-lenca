@@ -1,121 +1,103 @@
 import os
 import json
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-TOKEN = "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg"
+logging.basicConfig(level=logging.INFO)
+
+TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
 CHAT_LINK = "https://t.me/+eO24OhrqxGAzZDZl"
 DATA_FILE = "storage.json"
+WAITING = 1
+pending = {}
 
-WAITING_CONTENT = 1
-current_slot = {}
-
-def load_data():
+def load():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+        with open(DATA_FILE) as f:
             return json.load(f)
     return {}
 
-def save_data(data):
+def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE, slot: int):
-    current_slot[update.effective_user.id] = slot
-    await update.message.reply_text(f"📥 Gửi nội dung cho ô số {slot} (tin nhắn, ảnh, video, gif...):")
-    return WAITING_CONTENT
+async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await u.message.reply_text("👋 Chào!\n📥 /nap1-10 để lưu\n📤 /gui1-10 để gửi vào nhóm")
 
-async def save_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    slot = current_slot.get(user_id)
-    if slot is None:
+async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    cmd = u.message.text.split()[0][1:]
+    slot = cmd.replace("nap", "")
+    pending[u.effective_user.id] = slot
+    await u.message.reply_text(f"📥 Gửi nội dung cho ô {slot}:")
+    return WAITING
+
+async def save_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    slot = pending.get(uid)
+    if not slot:
         return ConversationHandler.END
-
-    data = load_data()
-    msg = update.message
-
+    data = load()
+    msg = u.message
     if msg.text:
-        data[str(slot)] = {"type": "text", "content": msg.text}
+        data[slot] = {"type": "text", "content": msg.text}
     elif msg.photo:
-        data[str(slot)] = {"type": "photo", "file_id": msg.photo[-1].file_id, "caption": msg.caption or ""}
+        data[slot] = {"type": "photo", "file_id": msg.photo[-1].file_id, "caption": msg.caption or ""}
     elif msg.video:
-        data[str(slot)] = {"type": "video", "file_id": msg.video.file_id, "caption": msg.caption or ""}
+        data[slot] = {"type": "video", "file_id": msg.video.file_id, "caption": msg.caption or ""}
     elif msg.animation:
-        data[str(slot)] = {"type": "animation", "file_id": msg.animation.file_id, "caption": msg.caption or ""}
+        data[slot] = {"type": "animation", "file_id": msg.animation.file_id, "caption": msg.caption or ""}
     elif msg.document:
-        data[str(slot)] = {"type": "document", "file_id": msg.document.file_id, "caption": msg.caption or ""}
+        data[slot] = {"type": "document", "file_id": msg.document.file_id, "caption": msg.caption or ""}
     else:
-        await update.message.reply_text("❌ Định dạng không hỗ trợ!")
+        await u.message.reply_text("❌ Không hỗ trợ định dạng này!")
         return ConversationHandler.END
-
-    save_data(data)
-    await update.message.reply_text(f"✅ Đã lưu vào ô số {slot}!")
-    current_slot.pop(user_id, None)
+    save(data)
+    await u.message.reply_text(f"✅ Đã lưu ô {slot}!")
+    pending.pop(uid, None)
     return ConversationHandler.END
 
-async def gui(update: Update, context: ContextTypes.DEFAULT_TYPE, slot: int):
-    data = load_data()
-    item = data.get(str(slot))
-
+async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    cmd = u.message.text.split()[0][1:]
+    slot = cmd.replace("gui", "")
+    data = load()
+    item = data.get(slot)
     if not item:
-        await update.message.reply_text(f"❌ Ô số {slot} chưa có nội dung!")
+        await u.message.reply_text(f"❌ Ô {slot} chưa có nội dung!")
         return
-
-    chat_id = CHAT_LINK
     try:
-        if item["type"] == "text":
-            await context.bot.send_message(chat_id=chat_id, text=item["content"])
-        elif item["type"] == "photo":
-            await context.bot.send_photo(chat_id=chat_id, photo=item["file_id"], caption=item["caption"])
-        elif item["type"] == "video":
-            await context.bot.send_video(chat_id=chat_id, video=item["file_id"], caption=item["caption"])
-        elif item["type"] == "animation":
-            await context.bot.send_animation(chat_id=chat_id, animation=item["file_id"], caption=item["caption"])
-        elif item["type"] == "document":
-            await context.bot.send_document(chat_id=chat_id, document=item["file_id"], caption=item["caption"])
-        await update.message.reply_text(f"✅ Đã gửi ô số {slot} vào nhóm!")
+        t = item["type"]
+        if t == "text":
+            await c.bot.send_message(CHAT_LINK, item["content"])
+        elif t == "photo":
+            await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"])
+        elif t == "video":
+            await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"])
+        elif t == "animation":
+            await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"])
+        elif t == "document":
+            await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"])
+        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào nhóm!")
     except Exception as e:
-        await update.message.reply_text(f"❌ Lỗi: {str(e)}\nHãy chắc bot đã được thêm vào nhóm và là admin!")
+        await u.message.reply_text(f"❌ Lỗi: {e}")
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    current_slot.pop(update.effective_user.id, None)
-    await update.message.reply_text("❌ Đã hủy!")
+async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    pending.pop(u.effective_user.id, None)
+    await u.message.reply_text("❌ Đã hủy!")
     return ConversationHandler.END
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Chào mừng!\n\n"
-        "📥 Lệnh lưu: /nap1 đến /nap10\n"
-        "📤 Lệnh gửi: /gui1 đến /gui10\n\n"
-        "Ví dụ: gõ /nap1 rồi gửi ảnh/video/text để lưu vào ô 1\n"
-        "Gõ /gui1 để gửi ô 1 vào nhóm"
-    )
-
-def make_nap_handler(slot):
-    async def handler(update, context):
-        return await nap(update, context, slot)
-    return handler
-
-def make_gui_handler(slot):
-    async def handler(update, context):
-        return await gui(update, context, slot)
-    return handler
 
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-
     for i in range(1, 11):
         conv = ConversationHandler(
-            entry_points=[CommandHandler(f"nap{i}", make_nap_handler(i))],
-            states={WAITING_CONTENT: [MessageHandler(filters.ALL & ~filters.COMMAND, save_content)]},
+            entry_points=[CommandHandler(f"nap{i}", nap_cmd)],
+            states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, save_content)]},
             fallbacks=[CommandHandler("cancel", cancel)],
         )
         app.add_handler(conv)
-        app.add_handler(CommandHandler(f"gui{i}", make_gui_handler(i)))
-
-    print("Bot đang chạy...")
+        app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
+    print("Bot chạy!")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
