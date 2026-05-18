@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
-CHAT_LINK = "https://t.me/+eO24OhrqxGAzZDZl"
+CHAT_LINK = "-1003617964607"
 DATA_FILE = "storage.json"
 WAITING = 1
 pending = {}
