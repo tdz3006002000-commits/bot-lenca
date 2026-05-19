@@ -22,24 +22,23 @@ def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# Hàm tạo thanh Menu 10 nút bấm co giãn gọn gàng
+# Thanh menu thiết kế tinh gọn theo yêu cầu (Không chứa /nap, có thêm /all)
 def bieu_dien_menu():
     boc_cut_nut = [
-        ['/gui1', '/gui2', '/gui3'],
-        ['/gui4', '/gui5', '/gui6'],
-        ['/gui7', '/gui8', '/gui9'],
-        ['/gui10']
+        ['/gui1', '/gui2', '/gui3', '/gui4', '/gui5'],
+        ['/gui6', '/gui7', '/gui8', '/gui9', '/gui10'],
+        ['/doi1', '/doi2', '/doi3', '/doi4', '/doi5'],
+        ['/doi6', '/doi7', '/doi8', '/doi9', '/doi10'],
+        ['/all']
     ]
     return ReplyKeyboardMarkup(boc_cut_nut, resize_keyboard=True, one_time_keyboard=False)
 
 async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     await u.message.reply_text(
-        "👋 Chào!\n"
-        "📥 /nap1-10 để lưu\n"
-        "📤 /gui1-10 để gửi vào nhóm\n"
-        "🔄 /doi1-10 để đổi nội dung\n"
-        "⚡ /doiXguiY để đổi ô X và gửi ô Y lên nhóm luôn",
-        reply_markup=bieu_dien_menu() # Hiện menu khi gõ /start
+        "👋 Hệ thống điều khiển BOT LENH VIP đã sẵn sàng!\n\n"
+        "📥 Lưu dữ liệu: Gõ tay lệnh /nap1 đến /nap10 (Chỉ làm 1 lần)\n"
+        "📤 Gửi nhanh, đổi nội dung ảnh và gửi trực tiếp: Dùng thanh menu bên dưới.",
+        reply_markup=bieu_dien_menu()
     )
 
 async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -60,7 +59,13 @@ async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     else:
         slot = cmd.replace("doi", "")
         pending[u.effective_user.id] = ("doi", slot, None)
-        await u.message.reply_text(f"🔄 Gửi nội dung mới cho ô {slot}:")
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên nhóm):")
+    return WAITING
+
+# Xử lý chức năng gửi liền lập tức /all
+async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    pending[u.effective_user.id] = ("all", None, None)
+    await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
     return WAITING
 
 async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -68,11 +73,86 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
     info = pending.get(uid)
     if not info:
         return ConversationHandler.END
+        
     action, slot1, slot2 = info
-    data = load()
     msg = u.message
     
-    # Sử dụng text_html và caption_html để giữ nguyên định dạng chữ (Bold, Italic, Icon VIP...)
+    # Trường hợp 1: Thao tác gửi thẳng luôn của lệnh /all
+    if action == "all":
+        try:
+            if msg.text:
+                await c.bot.send_message(CHAT_LINK, msg.text_html, parse_mode="HTML")
+            elif msg.photo:
+                await c.bot.send_photo(CHAT_LINK, msg.photo[-1].file_id, caption=msg.caption_html or "", parse_mode="HTML")
+            elif msg.video:
+                await c.bot.send_video(CHAT_LINK, msg.video.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+            elif msg.animation:
+                await c.bot.send_animation(CHAT_LINK, msg.animation.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+            elif msg.document:
+                await c.bot.send_document(CHAT_LINK, msg.document.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+            else:
+                await u.message.reply_text("❌ Không hỗ trợ định dạng này!", reply_markup=bieu_dien_menu())
+                return ConversationHandler.END
+            await u.message.reply_text("✅ Đã bắn thẳng nội dung lên nhóm thành công!", reply_markup=bieu_dien_menu())
+        except Exception as e:
+            await u.message.reply_text(f"❌ Lỗi gửi thẳng: {e}", reply_markup=bieu_dien_menu())
+        pending.pop(uid, None)
+        return ConversationHandler.END
+
+    data = load()
+    
+    # Trường hợp 2: Logic chỉnh sửa lệnh /doiX (Thay đổi ảnh mới nhưng giữ nguyên văn bản cũ)
+    if action == "doi":
+        item_cu = data.get(slot1)
+        van_ban_cu = ""
+        
+        # Trích xuất văn bản cũ đang có trong bộ nhớ của ô này
+        if item_cu:
+            if item_cu["type"] == "text":
+                van_ban_cu = item_cu["content"]
+            else:
+                van_ban_cu = item_cu.get("caption", "")
+                
+        if msg.photo:
+            data[slot1] = {"type": "photo", "file_id": msg.photo[-1].file_id, "caption": van_ban_cu}
+        elif msg.video:
+            data[slot1] = {"type": "video", "file_id": msg.video.file_id, "caption": van_ban_cu}
+        elif msg.animation:
+            data[slot1] = {"type": "animation", "file_id": msg.animation.file_id, "caption": van_ban_cu}
+        elif msg.document:
+            data[slot1] = {"type": "document", "file_id": msg.document.file_id, "caption": van_ban_cu}
+        elif msg.text:
+            # Nếu user cố tình gửi chữ, hệ thống hiểu là đè văn bản mới hoàn toàn vào text cũ
+            data[slot1] = {"type": "text", "content": msg.text_html}
+        else:
+            await u.message.reply_text("❌ Định dạng không hợp lệ cho lệnh đổi!", reply_markup=bieu_dien_menu())
+            return ConversationHandler.END
+            
+        save(data)
+        await u.message.reply_text(f"✅ Đã đổi ảnh và giữ nguyên văn bản cũ cho ô {slot1}!", reply_markup=bieu_dien_menu())
+        
+        # Bắt buộc tự động gửi ngay lập tức lên nhóm sau khi đổi thành công
+        try:
+            item = data[slot1]
+            t = item["type"]
+            if t == "text":
+                await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+            elif t == "photo":
+                await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "video":
+                await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "animation":
+                await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "document":
+                await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await u.message.reply_text(f"🚀 Tự động gửi ô {slot1} kèm ảnh mới lên nhóm thành công!", reply_markup=bieu_dien_menu())
+        except Exception as e:
+            await u.message.reply_text(f"❌ Lỗi tự động gửi lên nhóm: {e}", reply_markup=bieu_dien_menu())
+            
+        pending.pop(uid, None)
+        return ConversationHandler.END
+
+    # Trường hợp 3: Chạy lệnh nạp thủ công /napX ban đầu
     if msg.text:
         data[slot1] = {"type": "text", "content": msg.text_html}
     elif msg.photo:
@@ -88,14 +168,13 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
         
     save(data)
-    await u.message.reply_text(f"✅ Đã lưu/cập nhật ô {slot1}!", reply_markup=bieu_dien_menu())
+    await u.message.reply_text(f"✅ Đã lưu/cập nhật dữ liệu ô {slot1}!", reply_markup=bieu_dien_menu())
     
     if action == "doigui":
         item = data.get(slot2)
         if item:
             try:
                 t = item["type"]
-                # parse_mode="HTML" bắt buộc để hiển thị định dạng chữ và icon VIP
                 if t == "text":
                     await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
                 elif t == "photo":
@@ -125,7 +204,6 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
     try:
         t = item["type"]
-        # parse_mode="HTML" giúp giữ nguyên cấu trúc định dạng chữ khi đẩy lên group
         if t == "text":
             await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
         elif t == "photo":
@@ -142,15 +220,23 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
     pending.pop(u.effective_user.id, None)
-    await u.message.reply_text("❌ Đã hủy!", reply_markup=bieu_dien_menu())
+    await u.message.reply_text("❌ Đã hủy lệnh hiện tại!", reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
 
+    # Đăng ký xử lý lệnh gửi trực tiếp /all độc lập trong menu
+    conv_all = ConversationHandler(
+        entry_points=[CommandHandler("all", all_cmd)],
+        states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    app.add_handler(conv_all)
+
     for i in range(1, 11):
-        # /napX
+        # /napX (Lệnh gõ tay)
         conv_nap = ConversationHandler(
             entry_points=[CommandHandler(f"nap{i}", nap_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
@@ -178,7 +264,7 @@ def main():
             )
             app.add_handler(conv_doigui)
 
-    print("Bot đang hoạt động ổn định!")
+    print("Bot đang chạy ổn định với các nâng cấp mới!")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
