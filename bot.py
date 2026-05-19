@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -9,8 +9,14 @@ logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
 CHAT_LINK = "-1003617964607"
 DATA_FILE = "storage.json"
+
+# CẤU HÌNH MẬT KHẨU CHO BOT - ĐÃ ĐỔI THÀNH HARRY2005TDZ (VIẾT HOA TOÀN BỘ)
+BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
+
 WAITING = 1
+WAITING_PASS = 99  # Trạng thái chờ nhập mật khẩu
 pending = {}
+authenticated_users = set() # Lưu danh sách ID người dùng đã nhập đúng mật khẩu
 
 def load():
     if os.path.exists(DATA_FILE):
@@ -33,7 +39,21 @@ def bieu_dien_menu():
     ]
     return ReplyKeyboardMarkup(boc_cut_nut, resize_keyboard=True, one_time_keyboard=False)
 
+# Hàm kiểm tra bảo mật (Nếu chưa xác thực sẽ bắt nhập mật khẩu)
+def check_auth(user_id):
+    return user_id in authenticated_users
+
 async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    if not check_auth(uid):
+        pending[uid] = ("login", None, None)
+        await u.message.reply_text(
+            "🔒 Bot này đã được bảo mật!\n"
+            "Vui lòng nhập mật khẩu để mở khóa hệ thống:",
+            reply_markup=ReplyKeyboardRemove() # Ẩn menu cũ nếu có để bắt nhập pass
+        )
+        return WAITING_PASS
+        
     await u.message.reply_text(
         "👋 Hệ thống điều khiển BOT LENH VIP đã sẵn sàng!\n\n"
         "📥 Lưu dữ liệu: Gõ tay lệnh /nap1 đến /nap10 (Chỉ làm 1 lần)\n"
@@ -41,30 +61,62 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         reply_markup=bieu_dien_menu()
     )
 
+# Hàm xử lý kiểm tra mật khẩu người dùng nhập vào
+async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    user_pass = u.message.text
+    
+    if user_pass == BOT_PASSWORD:
+        authenticated_users.add(uid)
+        pending.pop(uid, None)
+        await u.message.reply_text(
+            "🎉 Mật khẩu chính xác! Hệ thống đã được mở khóa.",
+            reply_markup=bieu_dien_menu()
+        )
+        return ConversationHandler.END
+    else:
+        await u.message.reply_text("❌ Mật khẩu sai rồi! Vui lòng nhập lại mật khẩu:")
+        return WAITING_PASS
+
 async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    if not check_auth(uid):
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        return ConversationHandler.END
+        
     cmd = u.message.text.split()[0][1:]
     slot = cmd.replace("nap", "")
-    pending[u.effective_user.id] = ("nap", slot, None)
+    pending[uid] = ("nap", slot, None)
     await u.message.reply_text(f"📥 Gửi nội dung cho ô {slot}:")
     return WAITING
 
 async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    if not check_auth(uid):
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        return ConversationHandler.END
+        
     cmd = u.message.text.split()[0][1:]
     if "gui" in cmd:
         parts = cmd.split("gui")
         slot_doi = parts[0].replace("doi", "")
         slot_gui = parts[1]
-        pending[u.effective_user.id] = ("doigui", slot_doi, slot_gui)
+        pending[uid] = ("doigui", slot_doi, slot_gui)
         await u.message.reply_text(f"🔄 Gửi nội dung mới cho ô {slot_doi} (sẽ gửi ô {slot_gui} lên nhóm):")
     else:
         slot = cmd.replace("doi", "")
-        pending[u.effective_user.id] = ("doi", slot, None)
+        pending[uid] = ("doi", slot, None)
         await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên nhóm):")
     return WAITING
 
 # Xử lý chức năng gửi liền lập tức /all
 async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    pending[u.effective_user.id] = ("all", None, None)
+    uid = u.effective_user.id
+    if not check_auth(uid):
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        return ConversationHandler.END
+        
+    pending[uid] = ("all", None, None)
     await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
     return WAITING
 
@@ -122,7 +174,6 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
         elif msg.document:
             data[slot1] = {"type": "document", "file_id": msg.document.file_id, "caption": van_ban_cu}
         elif msg.text:
-            # Nếu user cố tình gửi chữ, hệ thống hiểu là đè văn bản mới hoàn toàn vào text cũ
             data[slot1] = {"type": "text", "content": msg.text_html}
         else:
             await u.message.reply_text("❌ Định dạng không hợp lệ cho lệnh đổi!", reply_markup=bieu_dien_menu())
@@ -131,7 +182,6 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
         save(data)
         await u.message.reply_text(f"✅ Đã đổi ảnh và giữ nguyên văn bản cũ cho ô {slot1}!", reply_markup=bieu_dien_menu())
         
-        # Bắt buộc tự động gửi ngay lập tức lên nhóm sau khi đổi thành công
         try:
             item = data[slot1]
             t = item["type"]
@@ -195,6 +245,11 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    if not check_auth(uid):
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        return
+        
     cmd = u.message.text.split()[0][1:]
     slot = cmd.replace("gui", "")
     data = load()
@@ -225,7 +280,14 @@ async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
+    
+    # Quản lý luồng đăng nhập bằng mật khẩu khi gõ /start
+    login_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={WAITING_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_password)]},
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    app.add_handler(login_handler)
 
     # Đăng ký xử lý lệnh gửi trực tiếp /all độc lập trong menu
     conv_all = ConversationHandler(
@@ -264,7 +326,7 @@ def main():
             )
             app.add_handler(conv_doigui)
 
-    print("Bot đang chạy ổn định với các nâng cấp mới!")
+    print("Bot đang chạy ổn định với hệ thống khóa bảo mật!")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
