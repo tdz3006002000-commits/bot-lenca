@@ -28,16 +28,86 @@ def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# Thanh menu thiết kế tinh gọn theo yêu cầu (Không chứa /nap, có thêm /all)
+# Thanh menu thiết kế tinh gọn theo yêu cầu
 def bieu_dien_menu():
     boc_cut_nut = [
-        ['/gui1', '/gui2', '/gui3', '/gui4', '/gui5'],
+        # Nhóm GỬI (trên) - /gui1, /gui2, /doi3(BÁO BÀN), /gui4, /gui5
+        ['/gui1', '/gui2', '/doi3', '/gui4', '/gui5'],
         ['/gui6', '/gui7', '/gui8', '/gui9', '/gui10'],
-        ['/doi1', '/doi2', '/doi3', '/doi4', '/doi5'],
-        ['/doi6', '/doi7', '/doi8', '/doi9', '/doi10'],
-        ['/all']
+        # Ngăn cách
+        ['/all'],
+        # Nhóm ĐỔI (dưới) - không có /doi3
+        ['/doi1', '/doi2', '/doi4', '/doi5', '/doi6'],
+        ['/doi7', '/doi8', '/doi9', '/doi10'],
     ]
-    return ReplyKeyboardMarkup(boc_cut_nut, resize_keyboard=True, one_time_keyboard=False)
+    keyboard = [
+        # Nhóm GỬI (trên)
+        [
+            {'text': 'CHUẨN BỊ', 'callback': '/gui1'},
+            {'text': 'LÊN CA', 'callback': '/gui2'},
+            {'text': 'BÁO BÀN', 'callback': '/doi3'},
+            {'text': 'CHỜ LỆNH', 'callback': '/gui4'},
+            {'text': 'BẮT ĐẦU', 'callback': '/gui5'},
+        ],
+        [
+            {'text': 'CON 10%', 'callback': '/gui6'},
+            {'text': 'CÁI 10%', 'callback': '/gui7'},
+            {'text': 'XUỐNG CA', 'callback': '/gui8'},
+            {'text': 'SỰ KIỆN', 'callback': '/gui9'},
+            {'text': 'KHUYẾN MÃI', 'callback': '/gui10'},
+        ],
+        # Ngăn cách
+        [
+            {'text': 'GỬI TIN NHẮN NHANH', 'callback': '/all'},
+        ],
+        # Nhóm ĐỔI (dưới) - không có /doi3
+        [
+            {'text': 'ĐỔI CHUẨN BỊ', 'callback': '/doi1'},
+            {'text': 'ĐỔI LÊN CA', 'callback': '/doi2'},
+            {'text': 'ĐỔI CHỜ LỆNH', 'callback': '/doi4'},
+            {'text': 'ĐỔI BẮT ĐẦU', 'callback': '/doi5'},
+            {'text': 'ĐỔI CON 10%', 'callback': '/doi6'},
+        ],
+        [
+            {'text': 'ĐỔI CÁI 10%', 'callback': '/doi7'},
+            {'text': 'ĐỔI XUỐNG CA', 'callback': '/doi8'},
+            {'text': 'ĐỔI SỰ KIỆN', 'callback': '/doi9'},
+            {'text': 'ĐỔI KHUYẾN MÃI', 'callback': '/doi10'},
+        ],
+    ]
+    # Chuyển sang dạng text button cho ReplyKeyboardMarkup
+    reply_keyboard = [
+        ['CHUẨN BỊ', 'LÊN CA', 'BÁO BÀN', 'CHỜ LỆNH', 'BẮT ĐẦU'],
+        ['CON 10%', 'CÁI 10%', 'XUỐNG CA', 'SỰ KIỆN', 'KHUYẾN MÃI'],
+        ['GỬI TIN NHẮN NHANH'],
+        ['ĐỔI CHUẨN BỊ', 'ĐỔI LÊN CA', 'ĐỔI CHỜ LỆNH', 'ĐỔI BẮT ĐẦU', 'ĐỔI CON 10%'],
+        ['ĐỔI CÁI 10%', 'ĐỔI XUỐNG CA', 'ĐỔI SỰ KIỆN', 'ĐỔI KHUYẾN MÃI'],
+    ]
+    return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+# Map tên nút bấm -> lệnh thực tế
+BUTTON_MAP = {
+    'CHUẨN BỊ': '/gui1',
+    'LÊN CA': '/gui2',
+    'BÁO BÀN': '/doi3',
+    'CHỜ LỆNH': '/gui4',
+    'BẮT ĐẦU': '/gui5',
+    'CON 10%': '/gui6',
+    'CÁI 10%': '/gui7',
+    'XUỐNG CA': '/gui8',
+    'SỰ KIỆN': '/gui9',
+    'KHUYẾN MÃI': '/gui10',
+    'GỬI TIN NHẮN NHANH': '/all',
+    'ĐỔI CHUẨN BỊ': '/doi1',
+    'ĐỔI LÊN CA': '/doi2',
+    'ĐỔI CHỜ LỆNH': '/doi4',
+    'ĐỔI BẮT ĐẦU': '/doi5',
+    'ĐỔI CON 10%': '/doi6',
+    'ĐỔI CÁI 10%': '/doi7',
+    'ĐỔI XUỐNG CA': '/doi8',
+    'ĐỔI SỰ KIỆN': '/doi9',
+    'ĐỔI KHUYẾN MÃI': '/doi10',
+}
 
 # Hàm kiểm tra bảo mật (Nếu chưa xác thực sẽ bắt nhập mật khẩu)
 def check_auth(user_id):
@@ -50,7 +120,7 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text(
             "🔒 Bot này đã được bảo mật!\n"
             "Vui lòng nhập mật khẩu để mở khóa hệ thống:",
-            reply_markup=ReplyKeyboardRemove() # Ẩn menu cũ nếu có để bắt nhập pass
+            reply_markup=ReplyKeyboardRemove()
         )
         return WAITING_PASS
         
@@ -120,6 +190,55 @@ async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
     return WAITING
 
+# Xử lý nút bấm text (chuyển tên nút -> lệnh thực tế)
+async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    uid = u.effective_user.id
+    text = u.message.text
+
+    if text not in BUTTON_MAP:
+        return
+
+    if not check_auth(uid):
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        return
+
+    cmd = BUTTON_MAP[text]
+
+    if cmd == '/all':
+        pending[uid] = ("all", None, None)
+        await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
+        return WAITING
+
+    if cmd.startswith('/gui'):
+        slot = cmd.replace('/gui', '')
+        data = load()
+        item = data.get(slot)
+        if not item:
+            await u.message.reply_text(f"❌ Ô {slot} chưa có nội dung!", reply_markup=bieu_dien_menu())
+            return
+        try:
+            t = item["type"]
+            if t == "text":
+                await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+            elif t == "photo":
+                await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "video":
+                await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "animation":
+                await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            elif t == "document":
+                await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào nhóm!", reply_markup=bieu_dien_menu())
+        except Exception as e:
+            await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
+        return
+
+    if cmd.startswith('/doi'):
+        slot = cmd.replace('/doi', '')
+        pending[uid] = ("doi", slot, None)
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên nhóm):")
+        return WAITING
+
 async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     info = pending.get(uid)
@@ -158,7 +277,6 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
         item_cu = data.get(slot1)
         van_ban_cu = ""
         
-        # Trích xuất văn bản cũ đang có trong bộ nhớ của ô này
         if item_cu:
             if item_cu["type"] == "text":
                 van_ban_cu = item_cu["content"]
@@ -306,8 +424,9 @@ def main():
         )
         app.add_handler(conv_nap)
 
-        # /guiX
-        app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
+        # /guiX (bỏ gui3)
+        if i != 3:
+            app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
 
         # /doiX
         conv_doi = ConversationHandler(
@@ -325,6 +444,14 @@ def main():
                 fallbacks=[CommandHandler("cancel", cancel)],
             )
             app.add_handler(conv_doigui)
+
+    # Xử lý nút bấm text từ keyboard
+    conv_button = ConversationHandler(
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_text)],
+        states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+    app.add_handler(conv_button)
 
     print("Bot đang chạy ổn định với hệ thống khóa bảo mật!")
     app.run_polling(drop_pending_updates=True)
