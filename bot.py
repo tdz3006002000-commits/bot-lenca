@@ -7,8 +7,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
-CHAT_LINK = "-1003617964607"
 DATA_FILE = "storage.json"
+GROUPS_FILE = "groups.json"  # File lưu danh sách ID nhóm mà bot tham gia
 
 # CẤU HÌNH MẬT KHẨU CHO BOT - ĐÃ ĐỔI THÀNH HARRY2005TDZ (VIẾT HOA TOÀN BỘ)
 BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
@@ -28,54 +28,55 @@ def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
+# Hàm tải danh sách nhóm
+def load_groups():
+    if os.path.exists(GROUPS_FILE):
+        with open(GROUPS_FILE) as f:
+            try:
+                return json.load(f)
+            except:
+                return []
+    return []
+
+# Hàm lưu danh sách nhóm (Đảm bảo không trùng lặp ID)
+def save_group(chat_id):
+    groups = load_groups()
+    if chat_id not in groups:
+        groups.append(chat_id)
+        with open(GROUPS_FILE, "w") as f:
+            json.dump(groups, f)
+
+# Hàm gửi tin nhắn/phương tiện đến TẤT CẢ các nhóm trong danh sách ngay lập tức
+async def broadcast_to_all_groups(bot, action_type, **kwargs):
+    groups = load_groups()
+    # Nếu chưa lưu nhóm nào từ trước, bot tự động bắn về nhóm mặc định cũ để tránh mất kết nối
+    if not groups:
+        groups = [-1003617964607]
+        
+    for chat_id in groups:
+        try:
+            if action_type == "message":
+                await bot.send_message(chat_id=chat_id, **kwargs)
+            elif action_type == "photo":
+                await bot.send_photo(chat_id=chat_id, **kwargs)
+            elif action_type == "video":
+                await bot.send_video(chat_id=chat_id, **kwargs)
+            elif action_type == "animation":
+                await bot.send_animation(chat_id=chat_id, **kwargs)
+            elif action_type == "document":
+                await bot.send_document(chat_id=chat_id, **kwargs)
+        except Exception as e:
+            logging.error(f"Không thể gửi lệnh đến nhóm {chat_id}: {e}")
+
+# Hàm tự động bắt ID khi bot được thêm vào nhóm hoặc có tin nhắn trong nhóm
+async def track_groups(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    if u.message and u.message.chat and u.message.chat.type in ["group", "supergroup"]:
+        save_group(u.message.chat.id)
+    if u.my_chat_member and u.my_chat_member.chat and u.my_chat_member.chat.type in ["group", "supergroup"]:
+        save_group(u.my_chat_member.chat.id)
+
 # Thanh menu thiết kế tinh gọn theo yêu cầu
 def bieu_dien_menu():
-    boc_cut_nut = [
-        # Nhóm GỬI (trên) - /gui1, /gui2, /doi3(BÁO BÀN), /gui4, /gui5
-        ['/gui1', '/gui2', '/doi3', '/gui4', '/gui5'],
-        ['/gui6', '/gui7', '/gui8', '/gui9', '/gui10'],
-        # Ngăn cách
-        ['/all'],
-        # Nhóm ĐỔI (dưới) - không có /doi3
-        ['/doi1', '/doi2', '/doi4', '/doi5', '/doi6'],
-        ['/doi7', '/doi8', '/doi9', '/doi10'],
-    ]
-    keyboard = [
-        # Nhóm GỬI (trên)
-        [
-            {'text': 'CHUẨN BỊ', 'callback': '/gui1'},
-            {'text': 'LÊN CA', 'callback': '/gui2'},
-            {'text': 'BÁO BÀN', 'callback': '/doi3'},
-            {'text': 'CHỜ LỆNH', 'callback': '/gui4'},
-            {'text': 'BẮT ĐẦU', 'callback': '/gui5'},
-        ],
-        [
-            {'text': 'CON 10%', 'callback': '/gui6'},
-            {'text': 'CÁI 10%', 'callback': '/gui7'},
-            {'text': 'XUỐNG CA', 'callback': '/gui8'},
-            {'text': 'SỰ KIỆN', 'callback': '/gui9'},
-            {'text': 'KHUYẾN MÃI', 'callback': '/gui10'},
-        ],
-        # Ngăn cách
-        [
-            {'text': 'GỬI TIN NHẮN NHANH', 'callback': '/all'},
-        ],
-        # Nhóm ĐỔI (dưới) - không có /doi3
-        [
-            {'text': 'ĐỔI CHUẨN BỊ', 'callback': '/doi1'},
-            {'text': 'ĐỔI LÊN CA', 'callback': '/doi2'},
-            {'text': 'ĐỔI CHỜ LỆNH', 'callback': '/doi4'},
-            {'text': 'ĐỔI BẮT ĐẦU', 'callback': '/doi5'},
-            {'text': 'ĐỔI CON 10%', 'callback': '/doi6'},
-        ],
-        [
-            {'text': 'ĐỔI CÁI 10%', 'callback': '/doi7'},
-            {'text': 'ĐỔI XUỐNG CA', 'callback': '/doi8'},
-            {'text': 'ĐỔI SỰ KIỆN', 'callback': '/doi9'},
-            {'text': 'ĐỔI KHUYẾN MÃI', 'callback': '/doi10'},
-        ],
-    ]
-    # Chuyển sang dạng text button cho ReplyKeyboardMarkup
     reply_keyboard = [
         ['CHUẨN BỊ', 'LÊN CA', 'BÁO BÀN', 'CHỜ LỆNH', 'BẮT ĐẦU'],
         ['CON 10%', 'CÁI 10%', 'XUỐNG CA', 'SỰ KIỆN', 'KHUYẾN MÃI'],
@@ -172,11 +173,11 @@ async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
         slot_doi = parts[0].replace("doi", "")
         slot_gui = parts[1]
         pending[uid] = ("doigui", slot_doi, slot_gui)
-        await u.message.reply_text(f"🔄 Gửi nội dung mới cho ô {slot_doi} (sẽ gửi ô {slot_gui} lên nhóm):")
+        await u.message.reply_text(f"🔄 Gửi nội dung mới cho ô {slot_doi} (sẽ gửi ô {slot_gui} lên tất cả các nhóm):")
     else:
         slot = cmd.replace("doi", "")
         pending[uid] = ("doi", slot, None)
-        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên nhóm):")
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên tất cả các nhóm):")
     return WAITING
 
 # Xử lý chức năng gửi liền lập tức /all
@@ -187,7 +188,7 @@ async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
         
     pending[uid] = ("all", None, None)
-    await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
+    await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên tất cả các nhóm ngay lập tức:")
     return WAITING
 
 # Xử lý nút bấm text (chuyển tên nút -> lệnh thực tế)
@@ -206,7 +207,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if cmd == '/all':
         pending[uid] = ("all", None, None)
-        await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên nhóm ngay lập tức:")
+        await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên tất cả các nhóm ngay lập tức:")
         return WAITING
 
     if cmd.startswith('/gui'):
@@ -219,16 +220,16 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
         try:
             t = item["type"]
             if t == "text":
-                await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "message", text=item["content"], parse_mode="HTML")
             elif t == "photo":
-                await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "photo", photo=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "video":
-                await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "video", video=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "animation":
-                await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "document":
-                await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
-            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào nhóm!", reply_markup=bieu_dien_menu())
+                await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
         except Exception as e:
             await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
         return
@@ -236,7 +237,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if cmd.startswith('/doi'):
         slot = cmd.replace('/doi', '')
         pending[uid] = ("doi", slot, None)
-        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên nhóm):")
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên tất cả các nhóm):")
         return WAITING
 
 async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -252,19 +253,19 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if action == "all":
         try:
             if msg.text:
-                await c.bot.send_message(CHAT_LINK, msg.text_html, parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "message", text=msg.text_html, parse_mode="HTML")
             elif msg.photo:
-                await c.bot.send_photo(CHAT_LINK, msg.photo[-1].file_id, caption=msg.caption_html or "", parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "photo", photo=msg.photo[-1].file_id, caption=msg.caption_html or "", parse_mode="HTML")
             elif msg.video:
-                await c.bot.send_video(CHAT_LINK, msg.video.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "video", video=msg.video.file_id, caption=msg.caption_html or "", parse_mode="HTML")
             elif msg.animation:
-                await c.bot.send_animation(CHAT_LINK, msg.animation.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "animation", animation=msg.animation.file_id, caption=msg.caption_html or "", parse_mode="HTML")
             elif msg.document:
-                await c.bot.send_document(CHAT_LINK, msg.document.file_id, caption=msg.caption_html or "", parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "document", document=msg.document.file_id, caption=msg.caption_html or "", parse_mode="HTML")
             else:
                 await u.message.reply_text("❌ Không hỗ trợ định dạng này!", reply_markup=bieu_dien_menu())
                 return ConversationHandler.END
-            await u.message.reply_text("✅ Đã bắn thẳng nội dung lên nhóm thành công!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text("✅ Đã bắn thẳng nội dung lên tất cả các nhóm thành công!", reply_markup=bieu_dien_menu())
         except Exception as e:
             await u.message.reply_text(f"❌ Lỗi gửi thẳng: {e}", reply_markup=bieu_dien_menu())
         pending.pop(uid, None)
@@ -304,16 +305,16 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
             item = data[slot1]
             t = item["type"]
             if t == "text":
-                await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "message", text=item["content"], parse_mode="HTML")
             elif t == "photo":
-                await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "photo", photo=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "video":
-                await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "video", video=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "animation":
-                await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "document":
-                await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
-            await u.message.reply_text(f"🚀 Tự động gửi ô {slot1} kèm ảnh mới lên nhóm thành công!", reply_markup=bieu_dien_menu())
+                await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await u.message.reply_text(f"🚀 Tự động gửi ô {slot1} kèm ảnh mới lên tất cả các nhóm thành công!", reply_markup=bieu_dien_menu())
         except Exception as e:
             await u.message.reply_text(f"❌ Lỗi tự động gửi lên nhóm: {e}", reply_markup=bieu_dien_menu())
             
@@ -344,16 +345,16 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
             try:
                 t = item["type"]
                 if t == "text":
-                    await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+                    await broadcast_to_all_groups(c.bot, "message", text=item["content"], parse_mode="HTML")
                 elif t == "photo":
-                    await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                    await broadcast_to_all_groups(c.bot, "photo", photo=item["file_id"], caption=item["caption"], parse_mode="HTML")
                 elif t == "video":
-                    await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                    await broadcast_to_all_groups(c.bot, "video", video=item["file_id"], caption=item["caption"], parse_mode="HTML")
                 elif t == "animation":
-                    await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+                    await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
                 elif t == "document":
-                    await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
-                await u.message.reply_text(f"✅ Đã gửi ô {slot2} vào nhóm!", reply_markup=bieu_dien_menu())
+                    await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
+                await u.message.reply_text(f"✅ Đã gửi ô {slot2} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
             except Exception as e:
                 await u.message.reply_text(f"❌ Lỗi gửi: {e}", reply_markup=bieu_dien_menu())
         else:
@@ -378,16 +379,16 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     try:
         t = item["type"]
         if t == "text":
-            await c.bot.send_message(CHAT_LINK, item["content"], parse_mode="HTML")
+            await broadcast_to_all_groups(c.bot, "message", text=item["content"], parse_mode="HTML")
         elif t == "photo":
-            await c.bot.send_photo(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await broadcast_to_all_groups(c.bot, "photo", photo=item["file_id"], caption=item["caption"], parse_mode="HTML")
         elif t == "video":
-            await c.bot.send_video(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await broadcast_to_all_groups(c.bot, "video", video=item["file_id"], caption=item["caption"], parse_mode="HTML")
         elif t == "animation":
-            await c.bot.send_animation(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
+            await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
         elif t == "document":
-            await c.bot.send_document(CHAT_LINK, item["file_id"], caption=item["caption"], parse_mode="HTML")
-        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào nhóm!", reply_markup=bieu_dien_menu())
+            await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
+        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
     except Exception as e:
         await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
 
@@ -398,6 +399,10 @@ async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).build()
+    
+    # Đăng ký hàm tự động bắt ID nhóm qua tin nhắn thường hoặc sự kiện thêm bot
+    app.add_handler(MessageHandler(filters.ChatType.GROUPS, track_groups), group=-1)
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups), group=-1)
     
     # Quản lý luồng đăng nhập bằng mật khẩu khi gõ /start
     login_handler = ConversationHandler(
