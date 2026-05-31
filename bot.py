@@ -8,7 +8,9 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
 DATA_FILE = "storage.json"
-GROUPS_FILE = "groups.json"  # File lưu danh sách ID nhóm mà bot tham gia
+
+# DANH SÁCH 2 ID NHÓM CỦA BẠN (Cố định để bot luôn bắn về cả 2 nhóm cùng lúc)
+LIST_GROUPS = [-1003617964607, -1002237072619] 
 
 # CẤU HÌNH MẬT KHẨU CHO BOT - ĐÃ ĐỔI THÀNH HARRY2005TDZ (VIẾT HOA TOÀN BỘ)
 BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
@@ -28,32 +30,9 @@ def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# Hàm tải danh sách nhóm
-def load_groups():
-    if os.path.exists(GROUPS_FILE):
-        with open(GROUPS_FILE) as f:
-            try:
-                return json.load(f)
-            except:
-                return []
-    return []
-
-# Hàm lưu danh sách nhóm (Đảm bảo không trùng lặp ID)
-def save_group(chat_id):
-    groups = load_groups()
-    if chat_id not in groups:
-        groups.append(chat_id)
-        with open(GROUPS_FILE, "w") as f:
-            json.dump(groups, f)
-
 # Hàm gửi tin nhắn/phương tiện đến TẤT CẢ các nhóm trong danh sách ngay lập tức
 async def broadcast_to_all_groups(bot, action_type, **kwargs):
-    groups = load_groups()
-    # Nếu chưa lưu nhóm nào từ trước, bot tự động bắn về nhóm mặc định cũ để tránh mất kết nối
-    if not groups:
-        groups = [-1003617964607]
-        
-    for chat_id in groups:
+    for chat_id in LIST_GROUPS:
         try:
             if action_type == "message":
                 await bot.send_message(chat_id=chat_id, **kwargs)
@@ -66,14 +45,7 @@ async def broadcast_to_all_groups(bot, action_type, **kwargs):
             elif action_type == "document":
                 await bot.send_document(chat_id=chat_id, **kwargs)
         except Exception as e:
-            logging.error(f"Không thể gửi lệnh đến nhóm {chat_id}: {e}")
-
-# Hàm tự động bắt ID khi bot được thêm vào nhóm hoặc có tin nhắn trong nhóm
-async def track_groups(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    if u.message and u.message.chat and u.message.chat.type in ["group", "supergroup"]:
-        save_group(u.message.chat.id)
-    if u.my_chat_member and u.my_chat_member.chat and u.my_chat_member.chat.type in ["group", "supergroup"]:
-        save_group(u.my_chat_member.chat.id)
+            logging.error(f"Không thể gửi tin nhắn đến nhóm {chat_id}: {e}")
 
 # Thanh menu thiết kế tinh gọn theo yêu cầu
 def bieu_dien_menu():
@@ -200,7 +172,8 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
 
     if not check_auth(uid):
-        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        # Nếu tài khẩu phụ chưa nhập pass ấn nút, bot thông báo thay vì báo lỗi crash
+        await u.message.reply_text("🔒 Tài khoản của bạn chưa mở khóa! Vui lòng gõ /start và nhập mật khẩu.")
         return
 
     cmd = BUTTON_MAP[text]
@@ -229,7 +202,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "document":
                 await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
-            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm cùng lúc!", reply_markup=bieu_dien_menu())
         except Exception as e:
             await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
         return
@@ -388,7 +361,7 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
             await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
         elif t == "document":
             await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
-        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
+        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm cùng lúc!", reply_markup=bieu_dien_menu())
     except Exception as e:
         await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
 
@@ -399,10 +372,6 @@ async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).build()
-    
-    # Đăng ký hàm tự động bắt ID nhóm qua tin nhắn thường hoặc sự kiện thêm bot
-    app.add_handler(MessageHandler(filters.ChatType.GROUPS, track_groups), group=-1)
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups), group=-1)
     
     # Quản lý luồng đăng nhập bằng mật khẩu khi gõ /start
     login_handler = ConversationHandler(
