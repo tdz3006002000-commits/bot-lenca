@@ -9,16 +9,16 @@ logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
 DATA_FILE = "storage.json"
 
-# DANH SÁCH 2 ID NHÓM CỦA BẠN (Cố định để bot luôn bắn về cả 2 nhóm cùng lúc)
+# DANH SÁCH 2 ID NHÓM CỐ ĐỊNH CỦA BẠN
 LIST_GROUPS = [-1003617964607, -1002237072619] 
 
-# CẤU HÌNH MẬT KHẨU CHO BOT - ĐÃ ĐỔI THÀNH HARRY2005TDZ (VIẾT HOA TOÀN BỘ)
+# MẬT KHẨU KHÓA HỆ THỐNG
 BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
 
 WAITING = 1
-WAITING_PASS = 99  # Trạng thái chờ nhập mật khẩu
+WAITING_PASS = 99  
 pending = {}
-authenticated_users = set() # Lưu danh sách ID người dùng đã nhập đúng mật khẩu
+authenticated_users = set() 
 
 def load():
     if os.path.exists(DATA_FILE):
@@ -30,7 +30,7 @@ def save(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# Hàm gửi tin nhắn/phương tiện đến TẤT CẢ các nhóm trong danh sách ngay lập tức
+# Hàm gửi tin nhắn/phương tiện đến TẤT CẢ các nhóm trong danh sách
 async def broadcast_to_all_groups(bot, action_type, **kwargs):
     for chat_id in LIST_GROUPS:
         try:
@@ -47,7 +47,7 @@ async def broadcast_to_all_groups(bot, action_type, **kwargs):
         except Exception as e:
             logging.error(f"Không thể gửi tin nhắn đến nhóm {chat_id}: {e}")
 
-# Thanh menu thiết kế tinh gọn theo yêu cầu
+# Thanh menu điều khiển
 def bieu_dien_menu():
     reply_keyboard = [
         ['CHUẨN BỊ', 'LÊN CA', 'BÁO BÀN', 'CHỜ LỆNH', 'BẮT ĐẦU'],
@@ -58,7 +58,6 @@ def bieu_dien_menu():
     ]
     return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
-# Map tên nút bấm -> lệnh thực tế
 BUTTON_MAP = {
     'CHUẨN BỊ': '/gui1',
     'LÊN CA': '/gui2',
@@ -82,7 +81,6 @@ BUTTON_MAP = {
     'ĐỔI KHUYẾN MÃI': '/doi10',
 }
 
-# Hàm kiểm tra bảo mật (Nếu chưa xác thực sẽ bắt nhập mật khẩu)
 def check_auth(user_id):
     return user_id in authenticated_users
 
@@ -99,12 +97,10 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         
     await u.message.reply_text(
         "👋 Hệ thống điều khiển BOT LENH VIP đã sẵn sàng!\n\n"
-        "📥 Lưu dữ liệu: Gõ tay lệnh /nap1 đến /nap10 (Chỉ làm 1 lần)\n"
-        "📤 Gửi nhanh, đổi nội dung ảnh và gửi trực tiếp: Dùng thanh menu bên dưới.",
+        "Bây giờ bạn có thể ra lệnh trực tiếp tại đây.",
         reply_markup=bieu_dien_menu()
     )
 
-# Hàm xử lý kiểm tra mật khẩu người dùng nhập vào
 async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     user_pass = u.message.text
@@ -124,7 +120,7 @@ async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
 async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước!")
         return ConversationHandler.END
         
     cmd = u.message.text.split()[0][1:]
@@ -136,7 +132,7 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
 async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước!")
         return ConversationHandler.END
         
     cmd = u.message.text.split()[0][1:]
@@ -149,21 +145,19 @@ async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     else:
         slot = cmd.replace("doi", "")
         pending[uid] = ("doi", slot, None)
-        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên tất cả các nhóm):")
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot}:")
     return WAITING
 
-# Xử lý chức năng gửi liền lập tức /all
 async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
+        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước!")
         return ConversationHandler.END
         
     pending[uid] = ("all", None, None)
-    await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên tất cả các nhóm ngay lập tức:")
+    await u.message.reply_text(f"⚡ Gửi tin nhắn bất kỳ, Bot sẽ bắn thẳng lên các nhóm ngay lập tức:")
     return WAITING
 
-# Xử lý nút bấm text (chuyển tên nút -> lệnh thực tế)
 async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     text = u.message.text
@@ -172,15 +166,14 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
 
     if not check_auth(uid):
-        # Nếu tài khẩu phụ chưa nhập pass ấn nút, bot thông báo thay vì báo lỗi crash
-        await u.message.reply_text("🔒 Tài khoản của bạn chưa mở khóa! Vui lòng gõ /start và nhập mật khẩu.")
+        await u.message.reply_text("🔒 Tài khoản chưa mở khóa! Vui lòng gõ /start và nhập mật khẩu.")
         return
 
     cmd = BUTTON_MAP[text]
 
     if cmd == '/all':
         pending[uid] = ("all", None, None)
-        await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ (Chữ/Ảnh/Video), Bot sẽ bắn thẳng lên tất cả các nhóm ngay lập tức:")
+        await u.message.reply_text("⚡ Gửi tin nhắn bất kỳ, Bot sẽ bắn thẳng lên các nhóm ngay lập tức:")
         return WAITING
 
     if cmd.startswith('/gui'):
@@ -188,7 +181,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
         data = load()
         item = data.get(slot)
         if not item:
-            await u.message.reply_text(f"❌ Ô {slot} chưa có nội dung!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"❌ Ô {slot} chưa có nội dung! Vui lòng dùng lệnh /nap{slot} trước.", reply_markup=bieu_dien_menu())
             return
         try:
             t = item["type"]
@@ -202,7 +195,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "document":
                 await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
-            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm cùng lúc!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
         except Exception as e:
             await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
         return
@@ -210,7 +203,7 @@ async def handle_button_text(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if cmd.startswith('/doi'):
         slot = cmd.replace('/doi', '')
         pending[uid] = ("doi", slot, None)
-        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot} (Bot sẽ giữ văn bản cũ và tự gửi lên tất cả các nhóm):")
+        await u.message.reply_text(f"🔄 Gửi HÌNH ẢNH MỚI cho ô {slot}:")
         return WAITING
 
 async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -222,7 +215,6 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
     action, slot1, slot2 = info
     msg = u.message
     
-    # Trường hợp 1: Thao tác gửi thẳng luôn của lệnh /all
     if action == "all":
         try:
             if msg.text:
@@ -235,27 +227,19 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await broadcast_to_all_groups(c.bot, "animation", animation=msg.animation.file_id, caption=msg.caption_html or "", parse_mode="HTML")
             elif msg.document:
                 await broadcast_to_all_groups(c.bot, "document", document=msg.document.file_id, caption=msg.caption_html or "", parse_mode="HTML")
-            else:
-                await u.message.reply_text("❌ Không hỗ trợ định dạng này!", reply_markup=bieu_dien_menu())
-                return ConversationHandler.END
-            await u.message.reply_text("✅ Đã bắn thẳng nội dung lên tất cả các nhóm thành công!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text("✅ Đã bắn thẳng nội dung lên tất cả các nhóm!", reply_markup=bieu_dien_menu())
         except Exception as e:
-            await u.message.reply_text(f"❌ Lỗi gửi thẳng: {e}", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"❌ Lỗi gửi: {e}", reply_markup=bieu_dien_menu())
         pending.pop(uid, None)
         return ConversationHandler.END
 
     data = load()
     
-    # Trường hợp 2: Logic chỉnh sửa lệnh /doiX (Thay đổi ảnh mới nhưng giữ nguyên văn bản cũ)
     if action == "doi":
         item_cu = data.get(slot1)
         van_ban_cu = ""
-        
         if item_cu:
-            if item_cu["type"] == "text":
-                van_ban_cu = item_cu["content"]
-            else:
-                van_ban_cu = item_cu.get("caption", "")
+            van_ban_cu = item_cu.get("content", "") if item_cu["type"] == "text" else item_cu.get("caption", "")
                 
         if msg.photo:
             data[slot1] = {"type": "photo", "file_id": msg.photo[-1].file_id, "caption": van_ban_cu}
@@ -267,12 +251,9 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
             data[slot1] = {"type": "document", "file_id": msg.document.file_id, "caption": van_ban_cu}
         elif msg.text:
             data[slot1] = {"type": "text", "content": msg.text_html}
-        else:
-            await u.message.reply_text("❌ Định dạng không hợp lệ cho lệnh đổi!", reply_markup=bieu_dien_menu())
-            return ConversationHandler.END
             
         save(data)
-        await u.message.reply_text(f"✅ Đã đổi ảnh và giữ nguyên văn bản cũ cho ô {slot1}!", reply_markup=bieu_dien_menu())
+        await u.message.reply_text(f"✅ Đã đổi dữ liệu ô {slot1}!", reply_markup=bieu_dien_menu())
         
         try:
             item = data[slot1]
@@ -287,14 +268,13 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
             elif t == "document":
                 await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
-            await u.message.reply_text(f"🚀 Tự động gửi ô {slot1} kèm ảnh mới lên tất cả các nhóm thành công!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"🚀 Tự động gửi ô {slot1} lên tất cả các nhóm thành công!", reply_markup=bieu_dien_menu())
         except Exception as e:
-            await u.message.reply_text(f"❌ Lỗi tự động gửi lên nhóm: {e}", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(f"❌ Lỗi gửi nhóm: {e}", reply_markup=bieu_dien_menu())
             
         pending.pop(uid, None)
         return ConversationHandler.END
 
-    # Trường hợp 3: Chạy lệnh nạp thủ công /napX ban đầu
     if msg.text:
         data[slot1] = {"type": "text", "content": msg.text_html}
     elif msg.photo:
@@ -305,12 +285,9 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
         data[slot1] = {"type": "animation", "file_id": msg.animation.file_id, "caption": msg.caption_html or ""}
     elif msg.document:
         data[slot1] = {"type": "document", "file_id": msg.document.file_id, "caption": msg.caption_html or ""}
-    else:
-        await u.message.reply_text("❌ Không hỗ trợ định dạng này!", reply_markup=bieu_dien_menu())
-        return ConversationHandler.END
         
     save(data)
-    await u.message.reply_text(f"✅ Đã lưu/cập nhật dữ liệu ô {slot1}!", reply_markup=bieu_dien_menu())
+    await u.message.reply_text(f"✅ Đã lưu dữ liệu ô {slot1}!", reply_markup=bieu_dien_menu())
     
     if action == "doigui":
         item = data.get(slot2)
@@ -330,40 +307,9 @@ async def handle_content(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await u.message.reply_text(f"✅ Đã gửi ô {slot2} vào tất cả các nhóm!", reply_markup=bieu_dien_menu())
             except Exception as e:
                 await u.message.reply_text(f"❌ Lỗi gửi: {e}", reply_markup=bieu_dien_menu())
-        else:
-            await u.message.reply_text(f"❌ Ô {slot2} chưa có nội dung!", reply_markup=bieu_dien_menu())
             
     pending.pop(uid, None)
     return ConversationHandler.END
-
-async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    uid = u.effective_user.id
-    if not check_auth(uid):
-        await u.message.reply_text("🔒 Bạn cần gõ /start và nhập mật khẩu trước khi dùng lệnh!")
-        return
-        
-    cmd = u.message.text.split()[0][1:]
-    slot = cmd.replace("gui", "")
-    data = load()
-    item = data.get(slot)
-    if not item:
-        await u.message.reply_text(f"❌ Ô {slot} chưa có nội dung!", reply_markup=bieu_dien_menu())
-        return
-    try:
-        t = item["type"]
-        if t == "text":
-            await broadcast_to_all_groups(c.bot, "message", text=item["content"], parse_mode="HTML")
-        elif t == "photo":
-            await broadcast_to_all_groups(c.bot, "photo", photo=item["file_id"], caption=item["caption"], parse_mode="HTML")
-        elif t == "video":
-            await broadcast_to_all_groups(c.bot, "video", video=item["file_id"], caption=item["caption"], parse_mode="HTML")
-        elif t == "animation":
-            await broadcast_to_all_groups(c.bot, "animation", animation=item["file_id"], caption=item["caption"], parse_mode="HTML")
-        elif t == "document":
-            await broadcast_to_all_groups(c.bot, "document", document=item["file_id"], caption=item["caption"], parse_mode="HTML")
-        await u.message.reply_text(f"✅ Đã gửi ô {slot} vào tất cả các nhóm cùng lúc!", reply_markup=bieu_dien_menu())
-    except Exception as e:
-        await u.message.reply_text(f"❌ Lỗi: {e}", reply_markup=bieu_dien_menu())
 
 async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
     pending.pop(u.effective_user.id, None)
@@ -373,7 +319,6 @@ async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     
-    # Quản lý luồng đăng nhập bằng mật khẩu khi gõ /start
     login_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={WAITING_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_password)]},
@@ -381,7 +326,6 @@ def main():
     )
     app.add_handler(login_handler)
 
-    # Đăng ký xử lý lệnh gửi trực tiếp /all độc lập trong menu
     conv_all = ConversationHandler(
         entry_points=[CommandHandler("all", all_cmd)],
         states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
@@ -390,7 +334,6 @@ def main():
     app.add_handler(conv_all)
 
     for i in range(1, 11):
-        # /napX (Lệnh gõ tay)
         conv_nap = ConversationHandler(
             entry_points=[CommandHandler(f"nap{i}", nap_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
@@ -398,11 +341,6 @@ def main():
         )
         app.add_handler(conv_nap)
 
-        # /guiX (bỏ gui3)
-        if i != 3:
-            app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
-
-        # /doiX
         conv_doi = ConversationHandler(
             entry_points=[CommandHandler(f"doi{i}", doi_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
@@ -410,7 +348,6 @@ def main():
         )
         app.add_handler(conv_doi)
 
-        # /doiXguiY
         for j in range(1, 11):
             conv_doigui = ConversationHandler(
                 entry_points=[CommandHandler(f"doi{i}gui{j}", doi_cmd)],
@@ -419,7 +356,6 @@ def main():
             )
             app.add_handler(conv_doigui)
 
-    # Xử lý nút bấm text từ keyboard
     conv_button = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_text)],
         states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
@@ -427,7 +363,7 @@ def main():
     )
     app.add_handler(conv_button)
 
-    print("Bot đang chạy ổn định với hệ thống khóa bảo mật!")
+    print("Bot đang chạy ổn định...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
