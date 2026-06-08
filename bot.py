@@ -33,12 +33,12 @@ def bieu_dien_menu():
     reply_keyboard = [
         ['CHUẨN BỊ', 'LÊN CA', 'BÁO BÀN', 'CHỜ LỆNH', 'BẮT ĐẦU'],
         ['CON 10%', 'CÁI 10%', 'XUỐNG CA', 'SỰ KIỆN', 'KHUYẾN MÃI'],
-        ['GỬI TIN NHẮN NHANH'],
-        ['ĐỔI CHUẨN BỊ', 'ĐỔI LÊN CA', 'ĐỔI CHỜ LỆNH', 'ĐỔI BẮT ĐẦU', 'ĐỔI CON 10%'],
-        ['ĐỔI CÁI 10%', 'ĐỔI XUỐNG CA', 'ĐỔI SỰ KIỆN', 'ĐỔI KHUYẾN MÃI'],
         # ===== 9 NÚT MỚI THÊM VÀO =====
         ['HÚP + 10%', 'GÃY - 10%', 'HÚP + 5%', 'GÃY - 5%', 'HÚP - 5%'],
         ['GÃY - 15%', 'GÃY + 5%', 'HÒA + 00'],
+        ['GỬI TIN NHẮN NHANH'],
+        ['ĐỔI CHUẨN BỊ', 'ĐỔI LÊN CA', 'ĐỔI CHỜ LỆNH', 'ĐỔI BẮT ĐẦU', 'ĐỔI CON 10%'],
+        ['ĐỔI CÁI 10%', 'ĐỔI XUỐNG CA', 'ĐỔI SỰ KIỆN', 'ĐỔI KHUYẾN MÃI'],
     ]
     return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
