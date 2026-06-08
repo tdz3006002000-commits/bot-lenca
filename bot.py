@@ -32,10 +32,8 @@ def save(data):
 def bieu_dien_menu():
     reply_keyboard = [
         ['CHUẨN BỊ', 'LÊN CA', 'BÁO BÀN', 'CHỜ LỆNH', 'BẮT ĐẦU'],
-        ['CON 10%', 'CÁI 10%', 'XUỐNG CA', 'SỰ KIỆN', 'KHUYẾN MÃI'],
-        # ===== 9 NÚT MỚI THÊM VÀO =====
-        ['HÚP + 10%', 'GÃY - 10%', 'HÚP + 5%', 'GÃY - 5%', 'HÚP - 5%'],
-        ['GÃY - 15%', 'GÃY + 5%', 'HÒA + 00'],
+        ['CON 10%', 'CÁI 10%', 'HÚP + 10%', 'GÃY - 10%', 'HÚP + 5%'],
+        ['GÃY - 5%', 'HÚP - 5%', 'GÃY - 15%', 'GÃY + 5%', 'HÒA + 00'],
         ['GỬI TIN NHẮN NHANH'],
         ['ĐỔI CHUẨN BỊ', 'ĐỔI LÊN CA', 'ĐỔI CHỜ LỆNH', 'ĐỔI BẮT ĐẦU', 'ĐỔI CON 10%'],
         ['ĐỔI CÁI 10%', 'ĐỔI XUỐNG CA', 'ĐỔI SỰ KIỆN', 'ĐỔI KHUYẾN MÃI'],
@@ -51,9 +49,14 @@ BUTTON_MAP = {
     'BẮT ĐẦU': '/gui5',
     'CON 10%': '/gui6',
     'CÁI 10%': '/gui7',
-    'XUỐNG CA': '/gui8',
-    'SỰ KIỆN': '/gui9',
-    'KHUYẾN MÃI': '/gui10',
+    'HÚP + 10%': '/doi11',
+    'GÃY - 10%': '/doi12',
+    'HÚP + 5%': '/doi13',
+    'GÃY - 5%': '/doi14',
+    'HÚP - 5%': '/doi15',
+    'GÃY - 15%': '/doi16',
+    'GÃY + 5%': '/doi17',
+    'HÒA + 00': '/doi18',
     'GỬI TIN NHẮN NHANH': '/all',
     'ĐỔI CHUẨN BỊ': '/doi1',
     'ĐỔI LÊN CA': '/doi2',
@@ -64,15 +67,6 @@ BUTTON_MAP = {
     'ĐỔI XUỐNG CA': '/doi8',
     'ĐỔI SỰ KIỆN': '/doi9',
     'ĐỔI KHUYẾN MÃI': '/doi10',
-    # ===== 9 NÚT MỚI THÊM VÀO =====
-    'HÚP + 10%': '/doi11',
-    'GÃY - 10%': '/doi12',
-    'HÚP + 5%': '/doi13',
-    'GÃY - 5%': '/doi14',
-    'HÚP - 5%': '/doi15',
-    'GÃY - 15%': '/doi16',
-    'GÃY + 5%': '/doi17',
-    'HÒA + 00': '/doi18',
 }
 
 # Hàm kiểm tra bảo mật (Nếu chưa xác thực sẽ bắt nhập mật khẩu)
