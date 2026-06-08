@@ -16,7 +16,15 @@ BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
 WAITING = 1
 WAITING_PASS = 99  # Trạng thái chờ nhập mật khẩu
 pending = {}
-authenticated_users = set()  # Lưu danh sách ID người dùng đã nhập đúng mật khẩu
+# Lưu danh sách ID người dùng đã nhập đúng mật khẩu (load từ file để không mất khi restart)
+def load_auth():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE) as f:
+            data = json.load(f)
+            return set(data.get("_auth", []))
+    return set()
+
+authenticated_users = load_auth()
 
 def load():
     if os.path.exists(DATA_FILE):
@@ -25,6 +33,12 @@ def load():
     return {}
 
 def save(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+def save_auth():
+    data = load()
+    data["_auth"] = list(authenticated_users)
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
@@ -99,6 +113,7 @@ async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if user_pass == BOT_PASSWORD:
         authenticated_users.add(uid)
+        save_auth()
         pending.pop(uid, None)
         await u.message.reply_text(
             "🎉 Mật khẩu chính xác! Hệ thống đã được mở khóa.",
