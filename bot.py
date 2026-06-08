@@ -82,6 +82,9 @@ def bieu_dien_menu():
         ['GỬI TIN NHẮN NHANH'],
         ['ĐỔI CHUẨN BỊ', 'ĐỔI LÊN CA', 'ĐỔI CHỜ LỆNH', 'ĐỔI BẮT ĐẦU', 'ĐỔI CON 10%'],
         ['ĐỔI CÁI 10%', 'ĐỔI XUỐNG CA', 'ĐỔI SỰ KIỆN', 'ĐỔI KHUYẾN MÃI'],
+        # ===== 9 NÚT MỚI THÊM VÀO =====
+        ['HÚP + 10%', 'GÃY - 10%', 'HÚP + 5%', 'GÃY - 5%', 'HÚP - 5%'],
+        ['GÃY - 15%', 'GÃY + 5%', 'HÒA + 00'],
     ]
     return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -107,6 +110,15 @@ BUTTON_MAP = {
     'ĐỔI XUỐNG CA': '/doi8',
     'ĐỔI SỰ KIỆN': '/doi9',
     'ĐỔI KHUYẾN MÃI': '/doi10',
+    # ===== 9 NÚT MỚI THÊM VÀO =====
+    'HÚP + 10%': '/doi11',
+    'GÃY - 10%': '/doi12',
+    'HÚP + 5%': '/doi13',
+    'GÃY - 5%': '/doi14',
+    'HÚP - 5%': '/doi15',
+    'GÃY - 15%': '/doi16',
+    'GÃY + 5%': '/doi17',
+    'HÒA + 00': '/doi18',
 }
 
 # Hàm kiểm tra bảo mật (Nếu chưa xác thực sẽ bắt nhập mật khẩu)
@@ -444,6 +456,15 @@ def main():
                 fallbacks=[CommandHandler("cancel", cancel)],
             )
             app.add_handler(conv_doigui)
+
+    # ===== ĐĂNG KÝ 8 NÚT MỚI /doi11 -> /doi18 =====
+    for i in range(11, 19):
+        conv_doi_new = ConversationHandler(
+            entry_points=[CommandHandler(f"doi{i}", doi_cmd)],
+            states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_content)]},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+        app.add_handler(conv_doi_new)
 
     # Xử lý nút bấm text từ keyboard
     conv_button = ConversationHandler(
