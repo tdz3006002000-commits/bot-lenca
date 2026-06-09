@@ -10,10 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ.get("BOT_TOKEN", "8877176302:AAETTH8e3LWY0BL3pHsOpUo4huAQjzOq2bg")
 CHAT_LINK = "-1003617964607"
-
 BOT_PASSWORD = os.environ.get("BOT_PASSWORD", "HARRY2005TDZ")
-
-# ===== PERSISTENT STORAGE QUA RAILWAY API =====
 RAILWAY_API_TOKEN = os.environ.get("RAILWAY_API_TOKEN", "")
 RAILWAY_SERVICE_ID = os.environ.get("RAILWAY_SERVICE_ID", "13ebf69b-680a-44d2-a905-ce4ef7803993")
 RAILWAY_ENVIRONMENT_ID = os.environ.get("RAILWAY_ENVIRONMENT_ID", "33dea9d1-8da0-40b1-9569-dc64580a4f0d")
@@ -22,54 +19,33 @@ def load():
     raw = os.environ.get("BOT_DATA", "")
     if raw:
         try:
-            decoded = base64.b64decode(raw).decode("utf-8")
-            return json.loads(decoded)
-        except Exception as e:
-            logging.warning(f"Khong doc duoc BOT_DATA: {e}")
+            return json.loads(base64.b64decode(raw).decode("utf-8"))
+        except:
+            pass
     return {}
 
 def save(data):
     try:
-        encoded = base64.b64encode(json.dumps(data, ensure_ascii=False).encode("utf-8")).decode("utf-8")
+        encoded = base64.b64encode(json.dumps(data, ensure_ascii=False).encode()).decode()
         os.environ["BOT_DATA"] = encoded
         if RAILWAY_API_TOKEN:
-            _save_to_railway(encoded)
-        else:
-            logging.warning("RAILWAY_API_TOKEN chua duoc cau hinh!")
+            try:
+                mut = "mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }"
+                requests.post("https://backboard.railway.com/graphql/v2",
+                    json={"query": mut, "variables": {"input": {"serviceId": RAILWAY_SERVICE_ID, "environmentId": RAILWAY_ENVIRONMENT_ID, "name": "BOT_DATA", "value": encoded}}},
+                    headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}", "Content-Type": "application/json"},
+                    timeout=10)
+            except Exception as e:
+                logging.error(f"Railway API loi: {e}")
     except Exception as e:
-        logging.error(f"Loi khi luu data: {e}")
-
-def _save_to_railway(encoded_value):
-    try:
-        mutation = "mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }"
-        variables = {
-            "input": {
-                "serviceId": RAILWAY_SERVICE_ID,
-                "environmentId": RAILWAY_ENVIRONMENT_ID,
-                "name": "BOT_DATA",
-                "value": encoded_value
-            }
-        }
-        resp = requests.post(
-            "https://backboard.railway.com/graphql/v2",
-            json={"query": mutation, "variables": variables},
-            headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}", "Content-Type": "application/json"},
-            timeout=10
-        )
-        if resp.status_code == 200:
-            logging.info("Da luu data len Railway!")
-        else:
-            logging.error(f"Railway API loi: {resp.status_code}")
-    except Exception as e:
-        logging.error(f"Loi Railway API: {e}")
+        logging.error(f"Loi save: {e}")
 
 WAITING = 1
 WAITING_PASS = 99
 pending = {}
 
 def load_auth():
-    data = load()
-    return set(data.get("_auth", []))
+    return set(load().get("_auth", []))
 
 authenticated_users = load_auth()
 
@@ -79,7 +55,7 @@ def save_auth():
     save(data)
 
 def bieu_dien_menu():
-    reply_keyboard = [
+    return ReplyKeyboardMarkup([
         ['CHUAN BI', 'LEN CA', 'BAO BAN', 'CHO LENH', 'BAT DAU'],
         ['CON 10%', 'CAI 10%', 'HUP + 10%', 'GAY - 10%', 'HUP + 5%'],
         ['GAY - 5%', 'HUP - 5%', 'GAY - 15%', 'GAY + 5%', 'HOA + 00'],
@@ -87,8 +63,7 @@ def bieu_dien_menu():
         ['GUI TIN NHAN NHANH'],
         ['DOI CHUAN BI', 'DOI LEN CA', 'DOI CHO LENH', 'DOI BAT DAU', 'DOI CON 10%'],
         ['DOI CAI 10%', 'DOI XUONG CA', 'DOI SU KIEN', 'DOI KHUYEN MAI'],
-    ]
-    return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
+    ], resize_keyboard=True, one_time_keyboard=False)
 
 BUTTON_MAP = {
     'CHUAN BI': '/gui1', 'LEN CA': '/gui2', 'BAO BAN': '/doi3',
@@ -103,8 +78,7 @@ BUTTON_MAP = {
     'DOI KHUYEN MAI': '/doi10',
 }
 
-def check_auth(user_id):
-    return user_id in authenticated_users
+def check_auth(uid): return uid in authenticated_users
 
 async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
@@ -126,7 +100,9 @@ async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
     return WAITING_PASS
 
 async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    await u.message.reply_text("Da huy.", reply_markup=ReplyKeyboardRemove())
+    uid = u.effective_user.id
+    pending.pop(uid, None)
+    await u.message.reply_text("Da huy.", reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
 async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -134,9 +110,9 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if not check_auth(uid):
         await u.message.reply_text("Chua xac thuc! Go /start.")
         return ConversationHandler.END
-    n = int(u.message.text.replace("/nap", ""))
+    n = int(u.message.text.strip().replace("/nap", ""))
     pending[uid] = ("nap", n, None)
-    await u.message.reply_text(f"Nhap noi dung lenh {n}:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    await u.message.reply_text(f"Nhap noi dung lenh {n} (anh hoac text):\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -150,22 +126,16 @@ async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     else:
         data[f"key{n}"] = {"type": "text", "text": u.message.text or ""}
     save(data)
-    await u.message.reply_text(f"Da luu lenh {n}!", reply_markup=bieu_dien_menu())
     del pending[uid]
+    await u.message.reply_text(f"Da luu lenh {n}!", reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
-async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    uid = u.effective_user.id
-    if not check_auth(uid):
-        await u.message.reply_text("Chua xac thuc!")
-        return
-    n = int(u.message.text.replace("/gui", ""))
+async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
     data = load()
-    key = f"key{n}"
-    if key not in data:
-        await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n}.")
+    item = data.get(f"key{n}")
+    if not item:
+        await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n} de nap.", reply_markup=bieu_dien_menu())
         return
-    item = data[key]
     try:
         if item["type"] == "photo":
             await c.bot.send_photo(chat_id=CHAT_LINK, photo=item["file_id"], caption=item.get("caption", ""))
@@ -175,19 +145,25 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await u.message.reply_text(f"Loi gui lenh {n}: {e}")
 
+async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    if not check_auth(u.effective_user.id):
+        await u.message.reply_text("Chua xac thuc!")
+        return
+    n = int(u.message.text.strip().replace("/gui", ""))
+    await _send_key(n, u, c)
+
 async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
         await u.message.reply_text("Chua xac thuc!")
         return ConversationHandler.END
-    n = int(u.message.text.replace("/doi", ""))
+    n = int(u.message.text.strip().replace("/doi", ""))
     data = load()
-    key = f"key{n}"
-    if key not in data:
-        await u.message.reply_text(f"Lenh {n} chua nap!")
+    if f"key{n}" not in data:
+        await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n} de nap.", reply_markup=bieu_dien_menu())
         return ConversationHandler.END
     pending[uid] = ("doi", n, None)
-    await u.message.reply_text(f"Doi noi dung lenh {n}. Nhap moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    await u.message.reply_text(f"Doi noi dung lenh {n}. Gui anh hoac text moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def doi_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -206,8 +182,8 @@ async def doi_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
         else:
             data[key] = {"type": "text", "text": u.message.text or ""}
     save(data)
-    await u.message.reply_text(f"Da doi lenh {n}!", reply_markup=bieu_dien_menu())
     del pending[uid]
+    await u.message.reply_text(f"Da doi lenh {n}!", reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
 async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -216,7 +192,7 @@ async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text("Chua xac thuc!")
         return ConversationHandler.END
     pending[uid] = ("all", None, None)
-    await u.message.reply_text("Nhap tin nhan hoac anh:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    await u.message.reply_text("Nhap tin nhan hoac gui anh de gui nhanh vao group:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def all_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -228,83 +204,77 @@ async def all_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
             await c.bot.send_photo(chat_id=CHAT_LINK, photo=u.message.photo[-1].file_id, caption=u.message.caption or "")
         else:
             await c.bot.send_message(chat_id=CHAT_LINK, text=u.message.text or "")
-        await u.message.reply_text("Da gui tin nhan!", reply_markup=bieu_dien_menu())
+        await u.message.reply_text("Da gui tin nhan vao group!", reply_markup=bieu_dien_menu())
     except Exception as e:
-        await u.message.reply_text(f"Loi: {e}")
+        await u.message.reply_text(f"Loi gui tin: {e}")
     del pending[uid]
     return ConversationHandler.END
 
 async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("Chua xac thuc!")
+        await u.message.reply_text("Chua xac thuc! Go /start.")
         return ConversationHandler.END
     text = u.message.text
     if text not in BUTTON_MAP:
         return ConversationHandler.END
     cmd = BUTTON_MAP[text]
-    u.message.text = cmd
     if cmd.startswith("/gui"):
-        await gui_cmd(u, c)
+        n = int(cmd.replace("/gui", ""))
+        await _send_key(n, u, c)
+        return ConversationHandler.END
     elif cmd.startswith("/doi"):
         n = int(cmd.replace("/doi", ""))
         data = load()
-        key = f"key{n}"
-        if key not in data:
-            await u.message.reply_text(f"Lenh {n} chua nap!", reply_markup=bieu_dien_menu())
+        if f"key{n}" not in data:
+            await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n}.", reply_markup=bieu_dien_menu())
             return ConversationHandler.END
         pending[uid] = ("doi", n, None)
-        await u.message.reply_text(f"Doi lenh {n}. Nhap moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+        await u.message.reply_text(f"Doi noi dung lenh {n}. Gui anh hoac text moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
         return WAITING
     elif cmd == "/all":
         pending[uid] = ("all", None, None)
-        await u.message.reply_text("Nhap tin nhan:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+        await u.message.reply_text("Nhap tin nhan hoac gui anh:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
         return WAITING
     return ConversationHandler.END
 
 def main():
     app = Application.builder().token(TOKEN).build()
-    login_handler = ConversationHandler(
+    app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={WAITING_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_password)]},
         fallbacks=[CommandHandler("cancel", cancel)]
-    )
-    app.add_handler(login_handler)
-    conv_all = ConversationHandler(
+    ))
+    app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("all", all_cmd)],
         states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, all_receive)]},
         fallbacks=[CommandHandler("cancel", cancel)]
-    )
-    app.add_handler(conv_all)
+    ))
     for i in range(1, 11):
-        conv_nap = ConversationHandler(
+        app.add_handler(ConversationHandler(
             entry_points=[CommandHandler(f"nap{i}", nap_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, nap_receive)]},
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-        app.add_handler(conv_nap)
+            fallbacks=[CommandHandler("cancel", cancel)]
+        ))
         if i != 3:
             app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
-        conv_doi = ConversationHandler(
+        app.add_handler(ConversationHandler(
             entry_points=[CommandHandler(f"doi{i}", doi_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, doi_receive)]},
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-        app.add_handler(conv_doi)
+            fallbacks=[CommandHandler("cancel", cancel)]
+        ))
     for i in range(11, 19):
-        conv_doi_new = ConversationHandler(
+        app.add_handler(ConversationHandler(
             entry_points=[CommandHandler(f"doi{i}", doi_cmd)],
             states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, doi_receive)]},
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-        app.add_handler(conv_doi_new)
-    conv_button = ConversationHandler(
+            fallbacks=[CommandHandler("cancel", cancel)]
+        ))
+    app.add_handler(ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, button_handler)],
         states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, doi_receive)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-    app.add_handler(conv_button)
-    print("Bot dang chay voi he thong luu tru persistent!")
+        fallbacks=[CommandHandler("cancel", cancel)]
+    ))
+    print("Bot dang chay!")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
