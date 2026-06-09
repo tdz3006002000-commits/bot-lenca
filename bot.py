@@ -3,7 +3,7 @@ import json
 import logging
 import base64
 import requests
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, MessageEntity
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler
@@ -105,10 +105,98 @@ BUTTON_MAP = {
     'DOI KHUYEN MAI': '/doi10',
 }
 
+# ==================== HELPERS ====================
+
+def entities_to_list(entities):
+    """Chuyen MessageEntity list sang list dict de luu JSON"""
+    if not entities:
+        return []
+    result = []
+    for e in entities:
+        d = {"type": e.type, "offset": e.offset, "length": e.length}
+        if e.url:
+            d["url"] = e.url
+        if e.language:
+            d["language"] = e.language
+        result.append(d)
+    return result
+
+def list_to_entities(lst):
+    """Chuyen list dict ve MessageEntity list"""
+    if not lst:
+        return None
+    entities = []
+    for d in lst:
+        e = MessageEntity(
+            type=d["type"],
+            offset=d["offset"],
+            length=d["length"],
+            url=d.get("url"),
+            language=d.get("language"),
+        )
+        entities.append(e)
+    return entities if entities else None
+
+def save_message(data, n, msg):
+    """Luu mot tin nhan (bat ky loai) vao data[key{n}]"""
+    if msg.photo:
+        file_id = msg.photo[-1].file_id
+        caption = msg.caption or ""
+        cap_entities = entities_to_list(msg.caption_entities)
+        data[f"key{n}"] = {
+            "type": "photo", "file_id": file_id,
+            "caption": caption, "cap_entities": cap_entities
+        }
+    elif msg.animation:
+        file_id = msg.animation.file_id
+        caption = msg.caption or ""
+        cap_entities = entities_to_list(msg.caption_entities)
+        data[f"key{n}"] = {
+            "type": "animation", "file_id": file_id,
+            "caption": caption, "cap_entities": cap_entities
+        }
+    elif msg.video:
+        file_id = msg.video.file_id
+        caption = msg.caption or ""
+        cap_entities = entities_to_list(msg.caption_entities)
+        data[f"key{n}"] = {
+            "type": "video", "file_id": file_id,
+            "caption": caption, "cap_entities": cap_entities
+        }
+    elif msg.sticker:
+        data[f"key{n}"] = {"type": "sticker", "file_id": msg.sticker.file_id}
+    elif msg.document:
+        file_id = msg.document.file_id
+        caption = msg.caption or ""
+        cap_entities = entities_to_list(msg.caption_entities)
+        data[f"key{n}"] = {
+            "type": "document", "file_id": file_id,
+            "caption": caption, "cap_entities": cap_entities
+        }
+    elif msg.voice:
+        file_id = msg.voice.file_id
+        caption = msg.caption or ""
+        cap_entities = entities_to_list(msg.caption_entities)
+        data[f"key{n}"] = {
+            "type": "voice", "file_id": file_id,
+            "caption": caption, "cap_entities": cap_entities
+        }
+    elif msg.video_note:
+        data[f"key{n}"] = {"type": "video_note", "file_id": msg.video_note.file_id}
+    elif msg.text:
+        text = msg.text
+        text_entities = entities_to_list(msg.entities)
+        data[f"key{n}"] = {
+            "type": "text", "text": text, "entities": text_entities
+        }
+    else:
+        return False
+    return True
+
 # ==================== CORE SEND ====================
 
 async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
-    """Gui noi dung lenh n ra group CHAT_LINK"""
+    """Gui noi dung lenh n ra group CHAT_LINK, giu nguyen dinh dang"""
     data = load()
     item = data.get(f"key{n}")
     if not item:
@@ -121,27 +209,39 @@ async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
         itype = item.get("type", "")
         caption = item.get("caption", "") or ""
         file_id = item.get("file_id", "")
+        cap_entities = list_to_entities(item.get("cap_entities", []))
 
         if itype == "text":
             text = item.get("text", "")
             if not text or not text.strip():
                 await u.message.reply_text(
-                    f"Lenh {n} bi luu text rong! Vui long nap lai bang /nap{n}.",
+                    f"Lenh {n} text rong! Nap lai bang /nap{n}.",
                     reply_markup=bieu_dien_menu())
                 return
-            await c.bot.send_message(chat_id=CHAT_LINK, text=text)
+            text_entities = list_to_entities(item.get("entities", []))
+            await c.bot.send_message(
+                chat_id=CHAT_LINK,
+                text=text,
+                entities=text_entities
+            )
             await u.message.reply_text(f"Da gui lenh {n} (chu) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "photo":
-            await c.bot.send_photo(chat_id=CHAT_LINK, photo=file_id, caption=caption)
+            await c.bot.send_photo(
+                chat_id=CHAT_LINK, photo=file_id,
+                caption=caption, caption_entities=cap_entities)
             await u.message.reply_text(f"Da gui lenh {n} (anh) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "animation":
-            await c.bot.send_animation(chat_id=CHAT_LINK, animation=file_id, caption=caption)
-            await u.message.reply_text(f"Da gui lenh {n} (GIF/animation) len group!", reply_markup=bieu_dien_menu())
+            await c.bot.send_animation(
+                chat_id=CHAT_LINK, animation=file_id,
+                caption=caption, caption_entities=cap_entities)
+            await u.message.reply_text(f"Da gui lenh {n} (GIF) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "video":
-            await c.bot.send_video(chat_id=CHAT_LINK, video=file_id, caption=caption)
+            await c.bot.send_video(
+                chat_id=CHAT_LINK, video=file_id,
+                caption=caption, caption_entities=cap_entities)
             await u.message.reply_text(f"Da gui lenh {n} (video) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "sticker":
@@ -149,11 +249,15 @@ async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
             await u.message.reply_text(f"Da gui lenh {n} (sticker) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "document":
-            await c.bot.send_document(chat_id=CHAT_LINK, document=file_id, caption=caption)
+            await c.bot.send_document(
+                chat_id=CHAT_LINK, document=file_id,
+                caption=caption, caption_entities=cap_entities)
             await u.message.reply_text(f"Da gui lenh {n} (file) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "voice":
-            await c.bot.send_voice(chat_id=CHAT_LINK, voice=file_id, caption=caption)
+            await c.bot.send_voice(
+                chat_id=CHAT_LINK, voice=file_id,
+                caption=caption, caption_entities=cap_entities)
             await u.message.reply_text(f"Da gui lenh {n} (voice) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "video_note":
@@ -162,7 +266,7 @@ async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
 
         else:
             await u.message.reply_text(
-                f"Lenh {n} co dinh dang khong ro ({itype}). Nap lai bang /nap{n}.",
+                f"Lenh {n} dinh dang la: {itype}. Nap lai bang /nap{n}.",
                 reply_markup=bieu_dien_menu())
     except Exception as e:
         logger.error(f"_send_key {n} error: {e}")
@@ -180,7 +284,7 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return WAITING_PASS
     await u.message.reply_text(
         "He thong BOT LENH VIP san sang!\n\n"
-        "NAP LENH: Go /nap1 den /nap10 roi gui anh/gif/video/text.\n"
+        "NAP LENH: Go /nap1 den /nap10 roi gui anh/gif/video/text (co dinh dang).\n"
         "GUI LENH: Bam nut tren menu.",
         reply_markup=bieu_dien_menu())
     return ConversationHandler.END
@@ -210,7 +314,7 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     pending[uid] = ("nap", n, None)
     await u.message.reply_text(
         f"NAP LENH {n}:\n"
-        f"Ho tro: Anh, GIF, Video, Sticker, Voice, File, Text (co dinh dang).\n"
+        f"Ho tro: Anh, GIF, Video, Sticker, Voice, File, Text (giu nguyen dinh dang).\n"
         f"/cancel de huy.",
         reply_markup=ReplyKeyboardRemove())
     return WAITING
@@ -223,101 +327,35 @@ async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     data = load()
     msg = u.message
 
-    if msg.photo:
-        file_id = msg.photo[-1].file_id
-        caption = msg.caption or ""
-        data[f"key{n}"] = {"type": "photo", "file_id": file_id, "caption": caption}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (ANH)!\nCaption: {caption if caption else '(khong co)'}",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.animation:
-        file_id = msg.animation.file_id
-        caption = msg.caption or ""
-        data[f"key{n}"] = {"type": "animation", "file_id": file_id, "caption": caption}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (GIF)!\nCaption: {caption if caption else '(khong co)'}",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.video:
-        file_id = msg.video.file_id
-        caption = msg.caption or ""
-        data[f"key{n}"] = {"type": "video", "file_id": file_id, "caption": caption}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (VIDEO)!\nCaption: {caption if caption else '(khong co)'}",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.sticker:
-        file_id = msg.sticker.file_id
-        data[f"key{n}"] = {"type": "sticker", "file_id": file_id}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (STICKER)!",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.document:
-        file_id = msg.document.file_id
-        caption = msg.caption or ""
-        data[f"key{n}"] = {"type": "document", "file_id": file_id, "caption": caption}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (FILE)!\nCaption: {caption if caption else '(khong co)'}",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.voice:
-        file_id = msg.voice.file_id
-        caption = msg.caption or ""
-        data[f"key{n}"] = {"type": "voice", "file_id": file_id, "caption": caption}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (VOICE)!",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.video_note:
-        file_id = msg.video_note.file_id
-        data[f"key{n}"] = {"type": "video_note", "file_id": file_id}
-        del pending[uid]
-        save(data)
-        await msg.reply_text(
-            f"Da luu lenh {n} (VIDEO NOTE)!",
-            reply_markup=bieu_dien_menu())
-
-    elif msg.text:
-        text = msg.text.strip()
-        if text.startswith("/"):
-            await msg.reply_text(
-                "Khong the luu lenh /command. Gui text binh thuong hoac media.",
-                reply_markup=bieu_dien_menu())
-            del pending[uid]
-            return ConversationHandler.END
-        if not text:
-            await msg.reply_text(
-                "Text trong! Gui noi dung co chu hoac media.",
-                reply_markup=ReplyKeyboardRemove())
-            return WAITING
-        data[f"key{n}"] = {"type": "text", "text": text}
-        del pending[uid]
-        save(data)
-        preview = text[:50] + ("..." if len(text) > 50 else "")
-        await msg.reply_text(
-            f"Da luu lenh {n} (TEXT)!\nNoi dung: {preview}",
-            reply_markup=bieu_dien_menu())
-
-    else:
-        await msg.reply_text(
-            "Dinh dang khong ho tro. Gui: anh/gif/video/sticker/voice/file/text.",
-            reply_markup=ReplyKeyboardRemove())
+    # Kiem tra text trong
+    if msg.text and not msg.text.strip():
+        await msg.reply_text("Text trong! Gui noi dung co chu hoac media.", reply_markup=ReplyKeyboardRemove())
         return WAITING
 
+    # Kiem tra text la lenh /command
+    if msg.text and msg.text.strip().startswith("/"):
+        await msg.reply_text("Khong luu lenh /command. Gui text binh thuong hoac media.", reply_markup=bieu_dien_menu())
+        del pending[uid]
+        return ConversationHandler.END
+
+    ok = save_message(data, n, msg)
+    if not ok:
+        await msg.reply_text("Dinh dang khong ho tro. Gui: anh/gif/video/sticker/voice/file/text.", reply_markup=ReplyKeyboardRemove())
+        return WAITING
+
+    del pending[uid]
+    save(data)
+    item = data[f"key{n}"]
+    itype = item.get("type", "?")
+    if itype == "text":
+        preview = item.get("text", "")[:40]
+        await msg.reply_text(f"Da luu lenh {n} (TEXT)!\nNoi dung: {preview}", reply_markup=bieu_dien_menu())
+    else:
+        cap = item.get("caption", "")
+        await msg.reply_text(
+            f"Da luu lenh {n} ({itype.upper()})!\n"
+            f"Caption: {cap[:30] if cap else '(khong co)'}",
+            reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
 async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -344,7 +382,7 @@ async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     itype = item.get("type", "?")
     await u.message.reply_text(
         f"DOI LENH {n} (hien tai: {itype}):\n"
-        f"Gui noi dung moi (anh/gif/video/sticker/text).\n/cancel de huy.",
+        f"Gui noi dung moi.\n/cancel de huy.",
         reply_markup=ReplyKeyboardRemove())
     return WAITING
 
@@ -352,9 +390,7 @@ async def doi_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if uid not in pending or pending[uid][0] != "doi":
         return ConversationHandler.END
-    n = pending[uid][1]
-    # Reuse nap_receive logic by temporarily setting pending to "nap"
-    pending[uid] = ("nap", n, None)
+    pending[uid] = ("nap", pending[uid][1], None)
     return await nap_receive(u, c)
 
 async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -374,37 +410,33 @@ async def all_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     del pending[uid]
     msg = u.message
+    bot = c.bot
     try:
         if msg.photo:
-            await u.get_bot().send_photo(
-                chat_id=CHAT_LINK,
-                photo=msg.photo[-1].file_id,
-                caption=msg.caption or "")
+            cap_ent = list_to_entities(entities_to_list(msg.caption_entities))
+            await bot.send_photo(chat_id=CHAT_LINK, photo=msg.photo[-1].file_id,
+                                 caption=msg.caption or "", caption_entities=cap_ent)
         elif msg.animation:
-            await u.get_bot().send_animation(
-                chat_id=CHAT_LINK,
-                animation=msg.animation.file_id,
-                caption=msg.caption or "")
+            cap_ent = list_to_entities(entities_to_list(msg.caption_entities))
+            await bot.send_animation(chat_id=CHAT_LINK, animation=msg.animation.file_id,
+                                     caption=msg.caption or "", caption_entities=cap_ent)
         elif msg.video:
-            await u.get_bot().send_video(
-                chat_id=CHAT_LINK,
-                video=msg.video.file_id,
-                caption=msg.caption or "")
+            cap_ent = list_to_entities(entities_to_list(msg.caption_entities))
+            await bot.send_video(chat_id=CHAT_LINK, video=msg.video.file_id,
+                                 caption=msg.caption or "", caption_entities=cap_ent)
         elif msg.sticker:
-            await u.get_bot().send_sticker(
-                chat_id=CHAT_LINK,
-                sticker=msg.sticker.file_id)
+            await bot.send_sticker(chat_id=CHAT_LINK, sticker=msg.sticker.file_id)
         elif msg.document:
-            await u.get_bot().send_document(
-                chat_id=CHAT_LINK,
-                document=msg.document.file_id,
-                caption=msg.caption or "")
+            cap_ent = list_to_entities(entities_to_list(msg.caption_entities))
+            await bot.send_document(chat_id=CHAT_LINK, document=msg.document.file_id,
+                                    caption=msg.caption or "", caption_entities=cap_ent)
         elif msg.text:
             text = msg.text.strip()
             if not text:
                 await msg.reply_text("Text trong! Thu lai.", reply_markup=bieu_dien_menu())
                 return ConversationHandler.END
-            await u.get_bot().send_message(chat_id=CHAT_LINK, text=text)
+            txt_ent = list_to_entities(entities_to_list(msg.entities))
+            await bot.send_message(chat_id=CHAT_LINK, text=text, entities=txt_ent)
         else:
             await msg.reply_text("Dinh dang khong ho tro.", reply_markup=bieu_dien_menu())
             return ConversationHandler.END
@@ -427,12 +459,11 @@ async def xem_lenh(u: Update, c: ContextTypes.DEFAULT_TYPE):
             itype = item.get("type", "?")
             if itype == "text":
                 preview = item.get("text", "")[:30]
-                lines.append(f"Lenh {i}: [TEXT] {preview}")
-            elif itype in ("photo", "animation", "video", "sticker", "document", "voice", "video_note"):
-                cap = item.get("caption", "")
-                lines.append(f"Lenh {i}: [{itype.upper()}] caption={cap[:20] if cap else '(khong)'}")
+                has_fmt = "co dinh dang" if item.get("entities") else "text thuong"
+                lines.append(f"Lenh {i}: [TEXT/{has_fmt}] {preview}")
             else:
-                lines.append(f"Lenh {i}: [{itype}]")
+                cap = item.get("caption", "")
+                lines.append(f"Lenh {i}: [{itype.upper()}] cap={cap[:20] if cap else '(khong)'}")
         else:
             lines.append(f"Lenh {i}: (chua nap)")
     await u.message.reply_text("\n".join(lines), reply_markup=bieu_dien_menu())
@@ -472,7 +503,7 @@ async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
         itype = item.get("type", "?")
         await u.message.reply_text(
             f"DOI LENH {n} (hien tai: {itype}):\n"
-            f"Gui noi dung moi (anh/gif/video/sticker/text).\n/cancel de huy.",
+            f"Gui noi dung moi.\n/cancel de huy.",
             reply_markup=ReplyKeyboardRemove())
         return
 
@@ -481,14 +512,12 @@ async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # Media filter: all supported types
     media_filter = (
         filters.PHOTO | filters.Document.ALL | filters.VIDEO |
         filters.ANIMATION | filters.Sticker.ALL | filters.VOICE |
         filters.VIDEO_NOTE | filters.TEXT
     )
 
-    # Auth conversation
     auth_conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={WAITING_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_password)]},
@@ -497,7 +526,6 @@ def main():
         allow_reentry=True,
     )
 
-    # Nap conversation (handles ALL media types)
     nap_conv = ConversationHandler(
         entry_points=[CommandHandler(f"nap{i}", nap_cmd) for i in range(1, 19)],
         states={WAITING: [MessageHandler(media_filter & ~filters.COMMAND, nap_receive)]},
@@ -506,7 +534,6 @@ def main():
         allow_reentry=True,
     )
 
-    # Doi conversation
     doi_conv = ConversationHandler(
         entry_points=[CommandHandler(f"doi{i}", doi_cmd) for i in range(1, 19)],
         states={WAITING: [MessageHandler(media_filter & ~filters.COMMAND, doi_receive)]},
@@ -515,7 +542,6 @@ def main():
         allow_reentry=True,
     )
 
-    # All/quick message conversation
     all_conv = ConversationHandler(
         entry_points=[CommandHandler("all", all_cmd)],
         states={WAITING: [MessageHandler(media_filter & ~filters.COMMAND, all_receive)]},
@@ -524,9 +550,8 @@ def main():
         allow_reentry=True,
     )
 
-    # Button handler for menu buttons (must be BEFORE conversations so it intercepts /doi buttons)
     button_keys = list(BUTTON_MAP.keys())
-    button_filter = filters.Regex(f"^({'|'.join(map(lambda x: x.replace('+', r'\+').replace('%', r'\%'), button_keys))})$")
+    button_filter = filters.Regex(f"^({'|'.join(map(lambda x: x.replace('+', r'\\+').replace('%', r'\\%'), button_keys))})$")
     app.add_handler(MessageHandler(button_filter, button_handler))
 
     app.add_handler(auth_conv)
@@ -534,16 +559,8 @@ def main():
     app.add_handler(doi_conv)
     app.add_handler(all_conv)
 
-    app.add_handler(CommandHandler("gui1", gui_cmd))
-    app.add_handler(CommandHandler("gui2", gui_cmd))
-    app.add_handler(CommandHandler("gui3", gui_cmd))
-    app.add_handler(CommandHandler("gui4", gui_cmd))
-    app.add_handler(CommandHandler("gui5", gui_cmd))
-    app.add_handler(CommandHandler("gui6", gui_cmd))
-    app.add_handler(CommandHandler("gui7", gui_cmd))
-    app.add_handler(CommandHandler("gui8", gui_cmd))
-    app.add_handler(CommandHandler("gui9", gui_cmd))
-    app.add_handler(CommandHandler("gui10", gui_cmd))
+    for i in range(1, 11):
+        app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
     app.add_handler(CommandHandler("xem", xem_lenh))
 
     logger.info("Bot dang chay...")
