@@ -92,23 +92,50 @@ def bieu_dien_menu():
         ['DOI CAI 10%', 'DOI XUONG CA', 'DOI SU KIEN', 'DOI KHUYEN MAI'],
     ], resize_keyboard=True, one_time_keyboard=False)
 
+# BUTTON_MAP: nut bam -> so lenh (duong so = gui, am so = doi)
+# gui1..gui18: cac lenh gui noi dung len nhom
+# doi1..doi18: cac lenh doi noi dung da nap
 BUTTON_MAP = {
-    'CHUAN BI': '/gui1', 'LEN CA': '/gui2', 'BAO BAN': '/doi3',
-    'CHO LENH': '/gui4', 'BAT DAU': '/gui5', 'CON 10%': '/gui6',
-    'CAI 10%': '/gui7', 'XUONG CA': '/gui8', 'SU KIEN': '/gui9',
-    'KHUYEN MAI': '/gui10', 'HUP + 10%': '/doi11', 'GAY - 10%': '/doi12',
-    'HUP + 5%': '/doi13', 'GAY - 5%': '/doi14', 'HUP - 5%': '/doi15',
-    'GAY - 15%': '/doi16', 'GAY + 5%': '/doi17', 'HOA + 00': '/doi18',
-    'GUI TIN NHAN NHANH': '/all', 'DOI CHUAN BI': '/doi1', 'DOI LEN CA': '/doi2',
-    'DOI CHO LENH': '/doi4', 'DOI BAT DAU': '/doi5', 'DOI CON 10%': '/doi6',
-    'DOI CAI 10%': '/doi7', 'DOI XUONG CA': '/doi8', 'DOI SU KIEN': '/doi9',
-    'DOI KHUYEN MAI': '/doi10',
+    # Row 1: 5 lenh gui chinh
+    'CHUAN BI':   'gui1',
+    'LEN CA':     'gui2',
+    'BAO BAN':    'gui3',
+    'CHO LENH':   'gui4',
+    'BAT DAU':    'gui5',
+    # Row 2: lenh gui % va thong bao
+    'CON 10%':    'gui6',
+    'CAI 10%':    'gui7',
+    'HUP + 10%':  'gui8',
+    'GAY - 10%':  'gui9',
+    'HUP + 5%':   'gui10',
+    # Row 3
+    'GAY - 5%':   'gui11',
+    'HUP - 5%':   'gui12',
+    'GAY - 15%':  'gui13',
+    'GAY + 5%':   'gui14',
+    'HOA + 00':   'gui15',
+    # Row 4
+    'XUONG CA':   'gui16',
+    'SU KIEN':    'gui17',
+    'KHUYEN MAI': 'gui18',
+    # Row 5
+    'GUI TIN NHAN NHANH': 'all',
+    # Row 6: doi lenh
+    'DOI CHUAN BI':  'doi1',
+    'DOI LEN CA':    'doi2',
+    'DOI CHO LENH':  'doi4',
+    'DOI BAT DAU':   'doi5',
+    'DOI CON 10%':   'doi6',
+    # Row 7
+    'DOI CAI 10%':   'doi7',
+    'DOI XUONG CA':  'doi16',
+    'DOI SU KIEN':   'doi17',
+    'DOI KHUYEN MAI':'doi18',
 }
 
 # ==================== HELPERS ====================
 
 def entities_to_list(entities):
-    """Chuyen MessageEntity list sang list dict de luu JSON"""
     if not entities:
         return []
     result = []
@@ -122,7 +149,6 @@ def entities_to_list(entities):
     return result
 
 def list_to_entities(lst):
-    """Chuyen list dict ve MessageEntity list"""
     if not lst:
         return None
     entities = []
@@ -138,57 +164,45 @@ def list_to_entities(lst):
     return entities if entities else None
 
 def save_message(data, n, msg):
-    """Luu mot tin nhan (bat ky loai) vao data[key{n}]"""
+    """Luu mot tin nhan vao data[key{n}], giu nguyen dinh dang"""
     if msg.photo:
         file_id = msg.photo[-1].file_id
         caption = msg.caption or ""
         cap_entities = entities_to_list(msg.caption_entities)
-        data[f"key{n}"] = {
-            "type": "photo", "file_id": file_id,
-            "caption": caption, "cap_entities": cap_entities
-        }
+        data[f"key{n}"] = {"type": "photo", "file_id": file_id,
+                           "caption": caption, "cap_entities": cap_entities}
     elif msg.animation:
         file_id = msg.animation.file_id
         caption = msg.caption or ""
         cap_entities = entities_to_list(msg.caption_entities)
-        data[f"key{n}"] = {
-            "type": "animation", "file_id": file_id,
-            "caption": caption, "cap_entities": cap_entities
-        }
+        data[f"key{n}"] = {"type": "animation", "file_id": file_id,
+                           "caption": caption, "cap_entities": cap_entities}
     elif msg.video:
         file_id = msg.video.file_id
         caption = msg.caption or ""
         cap_entities = entities_to_list(msg.caption_entities)
-        data[f"key{n}"] = {
-            "type": "video", "file_id": file_id,
-            "caption": caption, "cap_entities": cap_entities
-        }
+        data[f"key{n}"] = {"type": "video", "file_id": file_id,
+                           "caption": caption, "cap_entities": cap_entities}
     elif msg.sticker:
         data[f"key{n}"] = {"type": "sticker", "file_id": msg.sticker.file_id}
     elif msg.document:
         file_id = msg.document.file_id
         caption = msg.caption or ""
         cap_entities = entities_to_list(msg.caption_entities)
-        data[f"key{n}"] = {
-            "type": "document", "file_id": file_id,
-            "caption": caption, "cap_entities": cap_entities
-        }
+        data[f"key{n}"] = {"type": "document", "file_id": file_id,
+                           "caption": caption, "cap_entities": cap_entities}
     elif msg.voice:
         file_id = msg.voice.file_id
         caption = msg.caption or ""
         cap_entities = entities_to_list(msg.caption_entities)
-        data[f"key{n}"] = {
-            "type": "voice", "file_id": file_id,
-            "caption": caption, "cap_entities": cap_entities
-        }
+        data[f"key{n}"] = {"type": "voice", "file_id": file_id,
+                           "caption": caption, "cap_entities": cap_entities}
     elif msg.video_note:
         data[f"key{n}"] = {"type": "video_note", "file_id": msg.video_note.file_id}
     elif msg.text:
         text = msg.text
         text_entities = entities_to_list(msg.entities)
-        data[f"key{n}"] = {
-            "type": "text", "text": text, "entities": text_entities
-        }
+        data[f"key{n}"] = {"type": "text", "text": text, "entities": text_entities}
     else:
         return False
     return True
@@ -222,8 +236,7 @@ async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
             await c.bot.send_message(
                 chat_id=CHAT_LINK,
                 text=text,
-                entities=text_entities
-            )
+                entities=text_entities)
             await u.message.reply_text(f"Da gui lenh {n} (chu) len group!", reply_markup=bieu_dien_menu())
 
         elif itype == "photo":
@@ -272,7 +285,7 @@ async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
         logger.error(f"_send_key {n} error: {e}")
         await u.message.reply_text(f"Loi gui lenh {n}: {e}", reply_markup=bieu_dien_menu())
 
-# ==================== HANDLERS ====================
+# ==================== COMMAND HANDLERS ====================
 
 async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
@@ -284,7 +297,8 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return WAITING_PASS
     await u.message.reply_text(
         "He thong BOT LENH VIP san sang!\n\n"
-        "NAP LENH: Go /nap1 den /nap10 roi gui anh/gif/video/text (co dinh dang).\n"
+        "NAP LENH: Go /nap1 den /nap18.\n"
+        "XEM LENH: /xem\n"
         "GUI LENH: Bam nut tren menu.",
         reply_markup=bieu_dien_menu())
     return ConversationHandler.END
@@ -310,7 +324,8 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if not check_auth(uid):
         await u.message.reply_text("Chua xac thuc! Go /start.")
         return ConversationHandler.END
-    n = int(u.message.text.strip().replace("/nap", ""))
+    txt = u.message.text.strip()
+    n = int(txt.replace("/nap", ""))
     pending[uid] = ("nap", n, None)
     await u.message.reply_text(
         f"NAP LENH {n}:\n"
@@ -327,20 +342,18 @@ async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     data = load()
     msg = u.message
 
-    # Kiem tra text trong
     if msg.text and not msg.text.strip():
         await msg.reply_text("Text trong! Gui noi dung co chu hoac media.", reply_markup=ReplyKeyboardRemove())
         return WAITING
 
-    # Kiem tra text la lenh /command
     if msg.text and msg.text.strip().startswith("/"):
-        await msg.reply_text("Khong luu lenh /command. Gui text binh thuong hoac media.", reply_markup=bieu_dien_menu())
+        await msg.reply_text("Khong luu lenh /command. Gui text hoac media.", reply_markup=bieu_dien_menu())
         del pending[uid]
         return ConversationHandler.END
 
     ok = save_message(data, n, msg)
     if not ok:
-        await msg.reply_text("Dinh dang khong ho tro. Gui: anh/gif/video/sticker/voice/file/text.", reply_markup=ReplyKeyboardRemove())
+        await msg.reply_text("Dinh dang khong ho tro. Gui: anh/gif/video/sticker/file/text.", reply_markup=ReplyKeyboardRemove())
         return WAITING
 
     del pending[uid]
@@ -451,21 +464,22 @@ async def xem_lenh(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text("Chua xac thuc! Go /start.")
         return
     data = load()
-    lines = ["DANH SACH LENH DA NAP:"]
+    # Hien thi cac lenh theo thu tu 1-18
+    lines = ["DANH SACH LENH DA NAP (1-18):"]
     for i in range(1, 19):
         key = f"key{i}"
         if key in data:
             item = data[key]
             itype = item.get("type", "?")
             if itype == "text":
-                preview = item.get("text", "")[:30]
-                has_fmt = "co dinh dang" if item.get("entities") else "text thuong"
-                lines.append(f"Lenh {i}: [TEXT/{has_fmt}] {preview}")
+                preview = item.get("text", "")[:25]
+                has_fmt = " [co dinh dang]" if item.get("entities") else ""
+                lines.append(f"Lenh {i:2d}: [TEXT{has_fmt}] {preview}")
             else:
                 cap = item.get("caption", "")
-                lines.append(f"Lenh {i}: [{itype.upper()}] cap={cap[:20] if cap else '(khong)'}")
+                lines.append(f"Lenh {i:2d}: [{itype.upper()}] {cap[:20] if cap else '(khong caption)'}")
         else:
-            lines.append(f"Lenh {i}: (chua nap)")
+            lines.append(f"Lenh {i:2d}: (CHUA NAP)")
     await u.message.reply_text("\n".join(lines), reply_markup=bieu_dien_menu())
 
 async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -473,25 +487,25 @@ async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if not check_auth(uid):
         await u.message.reply_text("Chua xac thuc! Go /start.")
         return
-    text = u.message.text
-    cmd = BUTTON_MAP.get(text)
+    btn = u.message.text
+    cmd = BUTTON_MAP.get(btn)
     if not cmd:
         return
 
-    if cmd == "/all":
+    if cmd == "all":
         pending[uid] = ("all", None, None)
         await u.message.reply_text(
             "GUI TIN NHAN NHANH:\nGui noi dung (anh/gif/video/text) de gui ngay len group.\n/cancel de huy.",
             reply_markup=ReplyKeyboardRemove())
         return
 
-    if cmd.startswith("/gui"):
-        n = int(cmd.replace("/gui", ""))
+    if cmd.startswith("gui"):
+        n = int(cmd.replace("gui", ""))
         await _send_key(n, u, c)
         return
 
-    if cmd.startswith("/doi"):
-        n = int(cmd.replace("/doi", ""))
+    if cmd.startswith("doi"):
+        n = int(cmd.replace("doi", ""))
         data = load()
         if f"key{n}" not in data:
             await u.message.reply_text(
@@ -550,16 +564,19 @@ def main():
         allow_reentry=True,
     )
 
-    button_keys = list(BUTTON_MAP.keys())
-    button_filter = filters.Regex(f"^({'|'.join(map(lambda x: x.replace('+', r'\\+').replace('%', r'\\%'), button_keys))})$")
-    app.add_handler(MessageHandler(button_filter, button_handler))
+    # Button handler phai dang ky TRUOC cac conversation handlers
+    btn_labels = list(BUTTON_MAP.keys())
+    import re
+    escaped = [re.escape(b) for b in btn_labels]
+    btn_pattern = "^(" + "|".join(escaped) + ")$"
+    app.add_handler(MessageHandler(filters.Regex(btn_pattern), button_handler))
 
     app.add_handler(auth_conv)
     app.add_handler(nap_conv)
     app.add_handler(doi_conv)
     app.add_handler(all_conv)
 
-    for i in range(1, 11):
+    for i in range(1, 19):
         app.add_handler(CommandHandler(f"gui{i}", gui_cmd))
     app.add_handler(CommandHandler("xem", xem_lenh))
 
