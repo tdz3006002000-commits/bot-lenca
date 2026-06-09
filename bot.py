@@ -31,8 +31,12 @@ def save(data):
         if RAILWAY_API_TOKEN:
             try:
                 mut = "mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }"
-                requests.post("https://backboard.railway.com/graphql/v2",
-                    json={"query": mut, "variables": {"input": {"serviceId": RAILWAY_SERVICE_ID, "environmentId": RAILWAY_ENVIRONMENT_ID, "name": "BOT_DATA", "value": encoded}}},
+                requests.post(
+                    "https://backboard.railway.com/graphql/v2",
+                    json={"query": mut, "variables": {"input": {
+                        "serviceId": RAILWAY_SERVICE_ID,
+                        "environmentId": RAILWAY_ENVIRONMENT_ID,
+                        "name": "BOT_DATA", "value": encoded}}},
                     headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}", "Content-Type": "application/json"},
                     timeout=10)
             except Exception as e:
@@ -86,7 +90,10 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         pending[uid] = ("login", None, None)
         await u.message.reply_text("Bot nay da bao mat! Nhap mat khau:", reply_markup=ReplyKeyboardRemove())
         return WAITING_PASS
-    await u.message.reply_text("He thong BOT LENH VIP san sang!\n/nap1 den /nap10 de nap lenh.", reply_markup=bieu_dien_menu())
+    await u.message.reply_text(
+        "He thong BOT LENH VIP san sang!\n\n"
+        "NAP LENH: Go /nap1 den /nap10 roi gui anh hoac text.\n"
+        "GUI LENH: Bam nut tren menu.", reply_markup=bieu_dien_menu())
     return ConversationHandler.END
 
 async def handle_password(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -112,7 +119,12 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     n = int(u.message.text.strip().replace("/nap", ""))
     pending[uid] = ("nap", n, None)
-    await u.message.reply_text(f"Nhap noi dung lenh {n} (anh hoac text):\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    await u.message.reply_text(
+        f"NAP LENH {n}:\n"
+        f"- Gui ANH (co the kem chu thich caption)\n"
+        f"- Hoac gui TEXT\n"
+        f"/cancel de huy.",
+        reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -122,32 +134,71 @@ async def nap_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     n = pending[uid][1]
     data = load()
     if u.message.photo:
-        data[f"key{n}"] = {"type": "photo", "file_id": u.message.photo[-1].file_id, "caption": u.message.caption or ""}
+        # Luu anh: lay file_id anh lon nhat
+        file_id = u.message.photo[-1].file_id
+        caption = u.message.caption or ""
+        data[f"key{n}"] = {"type": "photo", "file_id": file_id, "caption": caption}
+        del pending[uid]
+        save(data)
+        await u.message.reply_text(
+            f"Da luu lenh {n} (ANH)!\n"
+            f"Caption: {caption if caption else '(khong co)'}",
+            reply_markup=bieu_dien_menu())
+    elif u.message.text:
+        text = u.message.text.strip()
+        if not text:
+            await u.message.reply_text("Text khong duoc de trong! Gui lai hoac /cancel:")
+            return WAITING
+        data[f"key{n}"] = {"type": "text", "text": text}
+        del pending[uid]
+        save(data)
+        await u.message.reply_text(
+            f"Da luu lenh {n} (TEXT)!\n"
+            f"Noi dung: {text[:50]}...",
+            reply_markup=bieu_dien_menu())
     else:
-        data[f"key{n}"] = {"type": "text", "text": u.message.text or ""}
-    save(data)
-    del pending[uid]
-    await u.message.reply_text(f"Da luu lenh {n}!", reply_markup=bieu_dien_menu())
+        await u.message.reply_text("Chi ho tro anh hoac text! Gui lai hoac /cancel:")
+        return WAITING
     return ConversationHandler.END
 
 async def _send_key(n: int, u: Update, c: ContextTypes.DEFAULT_TYPE):
+    """Gui lenh n ra group CHAT_LINK"""
     data = load()
     item = data.get(f"key{n}")
     if not item:
-        await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n} de nap.", reply_markup=bieu_dien_menu())
+        await u.message.reply_text(
+            f"LENH {n} CHUA DUOC NAP!\n"
+            f"Dung /nap{n} de nap noi dung truoc.",
+            reply_markup=bieu_dien_menu())
         return
     try:
-        if item["type"] == "photo":
-            await c.bot.send_photo(chat_id=CHAT_LINK, photo=item["file_id"], caption=item.get("caption", ""))
+        itype = item.get("type", "")
+        if itype == "photo":
+            await c.bot.send_photo(
+                chat_id=CHAT_LINK,
+                photo=item["file_id"],
+                caption=item.get("caption", "") or "")
+            await u.message.reply_text(f"Da gui lenh {n} (anh) len group!", reply_markup=bieu_dien_menu())
+        elif itype == "text":
+            text = item.get("text", "").strip()
+            if not text:
+                await u.message.reply_text(
+                    f"Lenh {n} bi luu text rong! Vui long nap lai bang /nap{n}.",
+                    reply_markup=bieu_dien_menu())
+                return
+            await c.bot.send_message(chat_id=CHAT_LINK, text=text)
+            await u.message.reply_text(f"Da gui lenh {n} (text) len group!", reply_markup=bieu_dien_menu())
         else:
-            await c.bot.send_message(chat_id=CHAT_LINK, text=item["text"])
-        await u.message.reply_text(f"Da gui lenh {n}!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(
+                f"Lenh {n} bi loi dinh dang (type={itype}). Nap lai bang /nap{n}.",
+                reply_markup=bieu_dien_menu())
     except Exception as e:
-        await u.message.reply_text(f"Loi gui lenh {n}: {e}")
+        logging.error(f"Loi gui lenh {n}: {e}")
+        await u.message.reply_text(f"Loi gui lenh {n}: {e}", reply_markup=bieu_dien_menu())
 
 async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if not check_auth(u.effective_user.id):
-        await u.message.reply_text("Chua xac thuc!")
+        await u.message.reply_text("Chua xac thuc! Go /start.")
         return
     n = int(u.message.text.strip().replace("/gui", ""))
     await _send_key(n, u, c)
@@ -155,15 +206,23 @@ async def gui_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
 async def doi_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("Chua xac thuc!")
+        await u.message.reply_text("Chua xac thuc! Go /start.")
         return ConversationHandler.END
     n = int(u.message.text.strip().replace("/doi", ""))
     data = load()
     if f"key{n}" not in data:
-        await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n} de nap.", reply_markup=bieu_dien_menu())
+        await u.message.reply_text(
+            f"Lenh {n} chua nap! Dung /nap{n} de nap.",
+            reply_markup=bieu_dien_menu())
         return ConversationHandler.END
     pending[uid] = ("doi", n, None)
-    await u.message.reply_text(f"Doi noi dung lenh {n}. Gui anh hoac text moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    item = data[f"key{n}"]
+    itype = item.get("type", "?")
+    await u.message.reply_text(
+        f"DOI LENH {n} (hien tai: {itype}):\n"
+        f"Gui ANH moi hoac TEXT moi.\n"
+        f"/cancel de huy.",
+        reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def doi_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -174,25 +233,51 @@ async def doi_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
     data = load()
     key = f"key{n}"
     if u.message.photo:
-        data[key] = {"type": "photo", "file_id": u.message.photo[-1].file_id, "caption": u.message.caption or ""}
-    else:
+        file_id = u.message.photo[-1].file_id
+        caption = u.message.caption or ""
+        data[key] = {"type": "photo", "file_id": file_id, "caption": caption}
+        del pending[uid]
+        save(data)
+        await u.message.reply_text(
+            f"Da doi lenh {n} thanh ANH!\nCaption: {caption if caption else '(khong co)'}",
+            reply_markup=bieu_dien_menu())
+    elif u.message.text:
+        text = u.message.text.strip()
+        if not text:
+            await u.message.reply_text("Text khong duoc de trong! Gui lai hoac /cancel:")
+            return WAITING
+        # Neu lenh cu la anh, chi doi caption; neu la text thi doi text
         old = data.get(key, {})
         if old.get("type") == "photo":
-            data[key]["caption"] = u.message.text or ""
+            data[key]["caption"] = text
+            del pending[uid]
+            save(data)
+            await u.message.reply_text(
+                f"Da doi caption lenh {n}!\nCaption moi: {text[:50]}",
+                reply_markup=bieu_dien_menu())
         else:
-            data[key] = {"type": "text", "text": u.message.text or ""}
-    save(data)
-    del pending[uid]
-    await u.message.reply_text(f"Da doi lenh {n}!", reply_markup=bieu_dien_menu())
+            data[key] = {"type": "text", "text": text}
+            del pending[uid]
+            save(data)
+            await u.message.reply_text(
+                f"Da doi lenh {n} thanh TEXT!\nNoi dung: {text[:50]}",
+                reply_markup=bieu_dien_menu())
+    else:
+        await u.message.reply_text("Chi ho tro anh hoac text! Gui lai hoac /cancel:")
+        return WAITING
     return ConversationHandler.END
 
 async def all_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     uid = u.effective_user.id
     if not check_auth(uid):
-        await u.message.reply_text("Chua xac thuc!")
+        await u.message.reply_text("Chua xac thuc! Go /start.")
         return ConversationHandler.END
     pending[uid] = ("all", None, None)
-    await u.message.reply_text("Nhap tin nhan hoac gui anh de gui nhanh vao group:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+    await u.message.reply_text(
+        "GUI TIN NHAN NHANH vao group:\n"
+        "Gui ANH hoac TEXT.\n"
+        "/cancel de huy.",
+        reply_markup=ReplyKeyboardRemove())
     return WAITING
 
 async def all_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -201,12 +286,22 @@ async def all_receive(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     try:
         if u.message.photo:
-            await c.bot.send_photo(chat_id=CHAT_LINK, photo=u.message.photo[-1].file_id, caption=u.message.caption or "")
+            await c.bot.send_photo(
+                chat_id=CHAT_LINK,
+                photo=u.message.photo[-1].file_id,
+                caption=u.message.caption or "")
+        elif u.message.text:
+            text = u.message.text.strip()
+            if not text:
+                await u.message.reply_text("Text khong duoc de trong!")
+                return WAITING
+            await c.bot.send_message(chat_id=CHAT_LINK, text=text)
         else:
-            await c.bot.send_message(chat_id=CHAT_LINK, text=u.message.text or "")
-        await u.message.reply_text("Da gui tin nhan vao group!", reply_markup=bieu_dien_menu())
+            await u.message.reply_text("Chi ho tro anh hoac text!")
+            return WAITING
+        await u.message.reply_text("Da gui vao group!", reply_markup=bieu_dien_menu())
     except Exception as e:
-        await u.message.reply_text(f"Loi gui tin: {e}")
+        await u.message.reply_text(f"Loi: {e}")
     del pending[uid]
     return ConversationHandler.END
 
@@ -227,16 +322,47 @@ async def button_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
         n = int(cmd.replace("/doi", ""))
         data = load()
         if f"key{n}" not in data:
-            await u.message.reply_text(f"Lenh {n} chua nap! Dung /nap{n}.", reply_markup=bieu_dien_menu())
+            await u.message.reply_text(
+                f"Lenh {n} chua nap! Dung /nap{n} de nap truoc.",
+                reply_markup=bieu_dien_menu())
             return ConversationHandler.END
         pending[uid] = ("doi", n, None)
-        await u.message.reply_text(f"Doi noi dung lenh {n}. Gui anh hoac text moi:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+        item = data[f"key{n}"]
+        itype = item.get("type", "?")
+        await u.message.reply_text(
+            f"DOI LENH {n} (hien tai: {itype}):\nGui ANH moi hoac TEXT moi.\n/cancel de huy.",
+            reply_markup=ReplyKeyboardRemove())
         return WAITING
     elif cmd == "/all":
         pending[uid] = ("all", None, None)
-        await u.message.reply_text("Nhap tin nhan hoac gui anh:\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+        await u.message.reply_text(
+            "GUI NHANH vao group:\nGui ANH hoac TEXT.\n/cancel de huy.",
+            reply_markup=ReplyKeyboardRemove())
         return WAITING
     return ConversationHandler.END
+
+async def xem_lenh(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    """Xem danh sach cac lenh da nap"""
+    if not check_auth(u.effective_user.id):
+        await u.message.reply_text("Chua xac thuc! Go /start.")
+        return
+    data = load()
+    keys = [k for k in data.keys() if k.startswith("key")]
+    if not keys:
+        await u.message.reply_text("Chua nap lenh nao! Dung /nap1 den /nap10.", reply_markup=bieu_dien_menu())
+        return
+    msg = "DANH SACH LENH DA NAP:\n"
+    for k in sorted(keys):
+        n = k.replace("key", "")
+        item = data[k]
+        itype = item.get("type", "?")
+        if itype == "photo":
+            cap = item.get("caption", "")
+            msg += f"  Lenh {n}: [ANH] caption={cap[:30] if cap else '(khong co)'}\n"
+        else:
+            txt = item.get("text", "")
+            msg += f"  Lenh {n}: [TEXT] {txt[:40]}\n"
+    await u.message.reply_text(msg, reply_markup=bieu_dien_menu())
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -245,6 +371,7 @@ def main():
         states={WAITING_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_password)]},
         fallbacks=[CommandHandler("cancel", cancel)]
     ))
+    app.add_handler(CommandHandler("xem", xem_lenh))
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("all", all_cmd)],
         states={WAITING: [MessageHandler(filters.ALL & ~filters.COMMAND, all_receive)]},
