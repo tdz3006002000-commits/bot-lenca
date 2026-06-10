@@ -191,8 +191,9 @@ async def send_photo_with_cap(user_msg, cap_text, cap_ents_list, bot, chat_id=CH
         await bot.send_sticker(chat_id=chat_id, sticker=msg.sticker.file_id)
         if cap:
             await bot.send_message(chat_id=chat_id, text=cap, entities=ents)
-    elif cap:
-        await bot.send_message(chat_id=chat_id, text=cap, entities=ents)
+    else:
+        if cap:
+            await bot.send_message(chat_id=chat_id, text=cap, entities=ents)
 
 # HANDLERS
 
@@ -232,11 +233,6 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await u.message.reply_text("Dung /nap1 den /nap18")
         return
-    data = load()
-    key = f"key{n}"
-    if key in data:
-        await u.message.reply_text(f"Lenh {n} da duoc nap roi! Khong the nap lai. Dung /xem de xem.")
-        return
     pending[uid] = {"action": "nap", "n": n}
     await u.message.reply_text(f"NAP LENH {n}:\nGui: Anh, GIF, Video, Sticker, File, Text.\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
 
@@ -268,10 +264,6 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
             n = info.get("n")
             data = load()
             key = f"key{n}"
-            if key in data:
-                await msg.reply_text(f"Lenh {n} da co roi! Khong the nap lai.", reply_markup=menu())
-                pending.pop(uid, None)
-                return
             if msg.photo:
                 fid = msg.photo[-1].file_id
                 cap = msg.caption or ""
@@ -364,7 +356,7 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
             data = load()
             key = f"key{n}"
             if key not in data:
-                await msg.reply_text(f"LENH {n} CHUA NAP!\nDung /nap{n} truoc.")
+                await msg.reply_text(f"LENH {n} CHUA NAP!\nDung /nap{n} de nap truoc.")
                 return
             pending[uid] = {"action": "gui_with_photo", "n": n}
             await msg.reply_text(f"GUI ANH/GIF len de bot gui kem lenh {n} len nhom (1 tin nhan)!\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
