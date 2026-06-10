@@ -16,11 +16,22 @@ RAILWAY_API_TOKEN = os.environ.get("RAILWAY_API_TOKEN", "")
 RAILWAY_SERVICE_ID = os.environ.get("RAILWAY_SERVICE_ID", "13ebf69b-680a-44d2-a905-ce4ef7803993")
 RAILWAY_ENVIRONMENT_ID = os.environ.get("RAILWAY_ENVIRONMENT_ID", "33dea9d1-8da0-40b1-9569-dc64580a4f0d")
 RAILWAY_PROJECT_ID = os.environ.get("RAILWAY_PROJECT_ID", "83626a22-0f63-4b60-8411-f0f1a0059f46")
+DATA_FILE = "/tmp/bot_data.json"
 
 SAFE_ENTITY_TYPES = {"bold", "italic", "underline", "strikethrough", "spoiler", "code", "pre", "text_link", "mention", "hashtag", "cashtag", "bot_command", "url", "email", "phone_number"}
 
 WAIT_PHOTO_KEYS = {3, 8, 9, 10, 11, 12, 13, 14, 15}
-# STORAGE
+# STORAGE - luu file local + Railway API backup
+
+def _load_file():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+def _save_file(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
 
 def _rget():
     if not RAILWAY_API_TOKEN:
@@ -28,41 +39,62 @@ def _rget():
     q = "query variables($p: String!, $s: String!, $e: String!) { variables(projectId: $p, serviceId: $s, environmentId: $e) }"
     r = requests.post("https://backboard.railway.com/graphql/v2", json={"query": q, "variables": {"p": RAILWAY_PROJECT_ID, "s": RAILWAY_SERVICE_ID, "e": RAILWAY_ENVIRONMENT_ID}}, headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}", "Content-Type": "application/json"}, timeout=15)
     d = r.json()
-    logger.info(f"Railway GET: {str(d)[:100]}")
+    logger.info(f"Railway GET: {str(d)[:150]}")
     return d.get("data", {}).get("variables", {}).get("BOT_DATA", None)
 
 def _rset(encoded):
     if not RAILWAY_API_TOKEN:
-        logger.warning("No RAILWAY_API_TOKEN!")
         return False
     m = "mutation variableUpsert($i: VariableUpsertInput!) { variableUpsert(input: $i) }"
     r = requests.post("https://backboard.railway.com/graphql/v2", json={"query": m, "variables": {"i": {"projectId": RAILWAY_PROJECT_ID, "serviceId": RAILWAY_SERVICE_ID, "environmentId": RAILWAY_ENVIRONMENT_ID, "name": "BOT_DATA", "value": encoded}}}, headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}", "Content-Type": "application/json"}, timeout=15)
     result = r.json()
-    logger.info(f"Railway SET: {str(result)[:100]}")
+    logger.info(f"Railway SET: {str(result)[:150]}")
     return not bool(result.get("errors"))
 
 def load():
+    # 1. Thu tien: doc file local
+    data = _load_file()
+    if data is not None:
+        logger.info("Loaded from local file")
+        return data
+    # 2. Thu hai: doc Railway API env var
     raw = os.environ.get("BOT_DATA", "")
     if not raw:
-        logger.info("Fetching BOT_DATA from Railway...")
+        logger.info("Fetching BOT_DATA from Railway API...")
         raw = _rget() or ""
         if raw:
             os.environ["BOT_DATA"] = raw
-            logger.info("BOT_DATA loaded OK")
     if raw:
-        return json.loads(base64.b64decode(raw).decode("utf-8"))
+        data = json.loads(base64.b64decode(raw).decode("utf-8"))
+        _save_file(data)  # luu xuong file local
+        logger.info("Loaded from Railway API, saved to file")
+        return data
     return {}
 
 def save(data):
+    # 1. Luu file local truoc (nhanh, tin cay)
+    _save_file(data)
+    logger.info("Saved to local file")
+    # 2. Luu Railway API (de phuc hoi sau redeploy)
     encoded = base64.b64encode(json.dumps(data, ensure_ascii=False).encode()).decode()
     os.environ["BOT_DATA"] = encoded
     ok = _rset(encoded)
-    if not ok:
-        logger.error("Railway save FAILED!")
+    logger.info(f"Railway API save: {'OK' if ok else 'FAILED'}")
 
-# AUTH
+# AUTH - load auth tu data
 
 pending = {}
+_data_cache = None
+
+def load_once():
+    global _data_cache
+    if _data_cache is None:
+        _data_cache = load()
+    return _data_cache
+
+def invalidate_cache():
+    global _data_cache
+    _data_cache = None
 
 def load_auth():
     return set(load().get("_auth", []))
@@ -73,6 +105,7 @@ def save_auth():
     data = load()
     data["_auth"] = list(authenticated_users)
     save(data)
+    invalidate_cache()
 
 def check_auth(uid):
     return uid in authenticated_users
@@ -137,8 +170,7 @@ def fix_cap_ents(text, ents_list):
 def get_lenh_caption(item):
     if not item:
         return None, []
-    t = item.get("type", "text")
-    if t == "text":
+    if item.get("type") == "text":
         return item.get("text", ""), item.get("entities", [])
     return item.get("caption", ""), item.get("caption_entities", [])
 
@@ -147,9 +179,8 @@ def get_lenh_caption(item):
 async def send_item(item, bot, chat_id=CHAT_LINK):
     t = item.get("type", "text")
     if t == "text":
-        txt = item.get("text", "")
         ents = list2ents(item.get("entities", []))
-        await bot.send_message(chat_id=chat_id, text=txt, entities=ents or None)
+        await bot.send_message(chat_id=chat_id, text=item.get("text", ""), entities=ents or None)
     elif t == "photo":
         cap = item.get("caption") or None
         ents = list2ents(item.get("caption_entities", [])) or None
@@ -173,7 +204,7 @@ async def send_item(item, bot, chat_id=CHAT_LINK):
     elif t == "video_note":
         await bot.send_video_note(chat_id=chat_id, video_note=item["file_id"])
 
-async def send_photo_with_cap(user_msg, cap_text, cap_ents_list, bot, chat_id=CHAT_LINK):
+async def send_with_photo(user_msg, cap_text, cap_ents_list, bot, chat_id=CHAT_LINK):
     cap = cap_text or None
     ents = list2ents(fix_cap_ents(cap_text or "", cap_ents_list)) if cap_ents_list else None
     if not ents:
@@ -207,6 +238,7 @@ async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 async def xem(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if not check_auth(u.effective_user.id):
+        await u.message.reply_text("Chua dang nhap. Dung /start")
         return
     data = load()
     lines = []
@@ -237,8 +269,7 @@ async def nap_cmd(u: Update, c: ContextTypes.DEFAULT_TYPE):
     await u.message.reply_text(f"NAP LENH {n}:\nGui: Anh, GIF, Video, Sticker, File, Text.\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
 
 async def cancel(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    uid = u.effective_user.id
-    pending.pop(uid, None)
+    pending.pop(u.effective_user.id, None)
     await u.message.reply_text("Da huy.", reply_markup=menu())
 
 async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -250,6 +281,7 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if info:
         action = info.get("action")
 
+        # Doi mat khau
         if action == "pass":
             if txt == BOT_PASSWORD:
                 authenticated_users.add(uid)
@@ -260,54 +292,68 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
                 await msg.reply_text("Sai mat khau. Thu lai:")
             return
 
+        # Nap lenh: luu ngay vao file + Railway
         if action == "nap":
             n = info.get("n")
             data = load()
             key = f"key{n}"
+            saved = False
             if msg.photo:
                 fid = msg.photo[-1].file_id
                 cap = msg.caption or ""
                 ents = ents2list(msg.caption_entities)
                 data[key] = {"type": "photo", "file_id": fid, "caption": cap, "caption_entities": ents}
-                await msg.reply_text(f"Da luu lenh {n} (PHOTO)!\nCaption: {cap[:50]}", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (PHOTO)!\nCaption: {cap[:50]}"
             elif msg.animation:
                 fid = msg.animation.file_id
                 cap = msg.caption or ""
                 ents = ents2list(msg.caption_entities)
                 data[key] = {"type": "animation", "file_id": fid, "caption": cap, "caption_entities": ents}
-                await msg.reply_text(f"Da luu lenh {n} (GIF)!\nCaption: {cap[:50]}", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (GIF)!\nCaption: {cap[:50]}"
             elif msg.video:
                 fid = msg.video.file_id
                 cap = msg.caption or ""
                 ents = ents2list(msg.caption_entities)
                 data[key] = {"type": "video", "file_id": fid, "caption": cap, "caption_entities": ents}
-                await msg.reply_text(f"Da luu lenh {n} (VIDEO)!\nCaption: {cap[:50]}", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (VIDEO)!\nCaption: {cap[:50]}"
             elif msg.sticker:
                 data[key] = {"type": "sticker", "file_id": msg.sticker.file_id}
-                await msg.reply_text(f"Da luu lenh {n} (STICKER)!", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (STICKER)!"
             elif msg.document:
                 fid = msg.document.file_id
                 cap = msg.caption or ""
                 ents = ents2list(msg.caption_entities)
                 data[key] = {"type": "document", "file_id": fid, "caption": cap, "caption_entities": ents}
-                await msg.reply_text(f"Da luu lenh {n} (FILE)!\nCaption: {cap[:50]}", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (FILE)!\nCaption: {cap[:50]}"
             elif msg.voice:
                 data[key] = {"type": "voice", "file_id": msg.voice.file_id}
-                await msg.reply_text(f"Da luu lenh {n} (VOICE)!", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (VOICE)!"
             elif msg.video_note:
                 data[key] = {"type": "video_note", "file_id": msg.video_note.file_id}
-                await msg.reply_text(f"Da luu lenh {n} (VIDEO NOTE)!", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (VIDEO NOTE)!"
             elif msg.text and not msg.text.startswith("/"):
                 ents = ents2list(msg.entities)
                 data[key] = {"type": "text", "text": msg.text, "entities": ents}
-                await msg.reply_text(f"Da luu lenh {n} (TEXT)!\n{msg.text[:50]}", reply_markup=menu())
+                saved = True
+                reply = f"Da luu lenh {n} (TEXT)!\n{msg.text[:50]}"
             else:
-                await msg.reply_text("Khong nhan duoc. Thu lai. /cancel de huy.")
+                await msg.reply_text("Khong nhan duoc noi dung. Thu lai. /cancel de huy.")
                 return
-            pending.pop(uid, None)
-            save(data)
+            if saved:
+                save(data)
+                invalidate_cache()
+                pending.pop(uid, None)
+                await msg.reply_text(reply, reply_markup=menu())
             return
 
+        # Doi anh de gui chung lenh 3,8-15
         if action == "gui_with_photo":
             n = info.get("n")
             data = load()
@@ -319,14 +365,15 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
             item = data[key]
             cap_text, cap_ents = get_lenh_caption(item)
             try:
-                await send_photo_with_cap(msg, cap_text, cap_ents, c.bot)
-                await msg.reply_text(f"Da gui lenh {n} (anh+lenh) len group!", reply_markup=menu())
+                await send_with_photo(msg, cap_text, cap_ents, c.bot)
+                await msg.reply_text(f"Da gui lenh {n} len group!", reply_markup=menu())
             except Exception as e:
-                logger.error(f"Send photo+lenh {n}: {e}")
+                logger.error(f"Send+photo lenh {n}: {e}")
                 await msg.reply_text(f"Loi gui lenh {n}: {e}", reply_markup=menu())
             pending.pop(uid, None)
             return
 
+    # Xu ly nut bam
     if not check_auth(uid):
         return
     if not txt:
@@ -352,25 +399,21 @@ async def universal_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if action.startswith("gui"):
         n = int(action.replace("gui", ""))
+        data = load()
+        key = f"key{n}"
+        if key not in data:
+            await msg.reply_text(f"LENH {n} CHUA NAP!\nDung /nap{n} de nap.")
+            return
         if n in WAIT_PHOTO_KEYS:
-            data = load()
-            key = f"key{n}"
-            if key not in data:
-                await msg.reply_text(f"LENH {n} CHUA NAP!\nDung /nap{n} de nap truoc.")
-                return
+            # Lenh 3,8-15: doi anh roi gui chung 1 tin
             pending[uid] = {"action": "gui_with_photo", "n": n}
-            await msg.reply_text(f"GUI ANH/GIF len de bot gui kem lenh {n} len nhom (1 tin nhan)!\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
+            await msg.reply_text(f"GUI ANH/GIF len de gui chung lenh {n} (1 tin)!\n/cancel de huy.", reply_markup=ReplyKeyboardRemove())
         else:
-            data = load()
-            key = f"key{n}"
-            if key not in data:
-                await msg.reply_text(f"LENH {n} CHUA NAP!\nDung /nap{n} de nap.")
-                return
             try:
                 await send_item(data[key], c.bot)
-                await msg.reply_text(f"Da gui lenh {n} ({data[key].get('type','?')}) len group!")
+                await msg.reply_text(f"Da gui lenh {n} len group!")
             except Exception as e:
-                logger.error(f"Send key{n}: {e}")
+                logger.error(f"Send {n}: {e}")
                 await msg.reply_text(f"Loi gui lenh {n}: {e}")
         return
 
@@ -384,7 +427,7 @@ def main():
     for i in range(1, 19):
         app.add_handler(CommandHandler(f"nap{i}", nap_cmd))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, universal_handler))
-    logger.info("Bot starting, token set: " + str(bool(RAILWAY_API_TOKEN)))
+    logger.info("Bot starting. Token set: " + str(bool(RAILWAY_API_TOKEN)))
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
